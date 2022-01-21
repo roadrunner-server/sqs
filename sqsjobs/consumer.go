@@ -28,7 +28,7 @@ const (
 	awsMetaDataURL string = "http://169.254.169.254/latest/dynamic/instance-identity/"
 )
 
-type consumer struct {
+type Consumer struct {
 	sync.Mutex
 	pq       priorityqueue.Queue
 	log      *zap.Logger
@@ -54,7 +54,7 @@ type consumer struct {
 	pauseCh chan struct{}
 }
 
-func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer, pq priorityqueue.Queue) (*consumer, error) {
+func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer, pq priorityqueue.Queue) (*Consumer, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	/*
@@ -94,8 +94,8 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 
 	conf.InitDefault()
 
-	// initialize job consumer
-	jb := &consumer{
+	// initialize job Consumer
+	jb := &Consumer{
 		pq:                pq,
 		log:               log,
 		messageGroupID:    uuid.NewString(),
@@ -109,34 +109,9 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 	}
 
 	// PARSE CONFIGURATION -------
-	var awsConf aws.Config
-
-	switch insideAWS {
-	case true:
-		awsConf, err = config.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, errors.E(op, err)
-		}
-
-		// config with retries
-		jb.client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
-			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
-				opts.MaxAttempts = 60
-			})
-		})
-	case false:
-		awsConf, err = config.LoadDefaultConfig(context.Background(),
-			config.WithRegion(conf.Region),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(conf.Key, conf.Secret, conf.SessionToken)))
-		if err != nil {
-			return nil, errors.E(op, err)
-		}
-		// config with retries
-		jb.client = sqs.NewFromConfig(awsConf, sqs.WithEndpointResolver(sqs.EndpointResolverFromURL(conf.Endpoint)), func(o *sqs.Options) {
-			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
-				opts.MaxAttempts = 60
-			})
-		})
+	jb.client, err = checkEnv(insideAWS, conf.Key, conf.Secret, conf.SessionToken, conf.Endpoint, conf.Region)
+	if err != nil {
+		return nil, errors.E(op, err)
 	}
 
 	out, err := jb.client.CreateQueue(context.Background(), &sqs.CreateQueueInput{QueueName: jb.queue, Attributes: jb.attributes, Tags: jb.tags})
@@ -158,7 +133,7 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 	return jb, nil
 }
 
-func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Configurer, pq priorityqueue.Queue) (*consumer, error) {
+func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Configurer, pq priorityqueue.Queue) (*Consumer, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	/*
@@ -199,8 +174,8 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 		return nil, errors.E(op, err)
 	}
 
-	// initialize job consumer
-	jb := &consumer{
+	// initialize job Consumer
+	jb := &Consumer{
 		pq:                pq,
 		log:               log,
 		messageGroupID:    uuid.NewString(),
@@ -215,34 +190,9 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 
 	// PARSE CONFIGURATION -------
 
-	var awsConf aws.Config
-
-	switch insideAWS {
-	case true:
-		awsConf, err = config.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, errors.E(op, err)
-		}
-
-		// config with retries
-		jb.client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
-			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
-				opts.MaxAttempts = 60
-			})
-		})
-	case false:
-		awsConf, err = config.LoadDefaultConfig(context.Background(),
-			config.WithRegion(conf.Region),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(conf.Key, conf.Secret, conf.SessionToken)))
-		if err != nil {
-			return nil, errors.E(op, err)
-		}
-		// config with retries
-		jb.client = sqs.NewFromConfig(awsConf, sqs.WithEndpointResolver(sqs.EndpointResolverFromURL(conf.Endpoint)), func(o *sqs.Options) {
-			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
-				opts.MaxAttempts = 60
-			})
-		})
+	jb.client, err = checkEnv(insideAWS, conf.Key, conf.Secret, conf.SessionToken, conf.Endpoint, conf.Region)
+	if err != nil {
+		return nil, errors.E(op, err)
 	}
 
 	out, err := jb.client.CreateQueue(context.Background(), &sqs.CreateQueueInput{QueueName: jb.queue, Attributes: jb.attributes, Tags: jb.tags})
@@ -264,7 +214,7 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 	return jb, nil
 }
 
-func (c *consumer) Push(ctx context.Context, jb *jobs.Job) error {
+func (c *Consumer) Push(ctx context.Context, jb *jobs.Job) error {
 	const op = errors.Op("sqs_push")
 	// check if the pipeline registered
 
@@ -288,7 +238,7 @@ func (c *consumer) Push(ctx context.Context, jb *jobs.Job) error {
 	return nil
 }
 
-func (c *consumer) State(ctx context.Context) (*jobs.State, error) {
+func (c *Consumer) State(ctx context.Context) (*jobs.State, error) {
 	const op = errors.Op("sqs_state")
 	attr, err := c.client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
 		QueueUrl: c.queueURL,
@@ -330,12 +280,12 @@ func (c *consumer) State(ctx context.Context) (*jobs.State, error) {
 	return out, nil
 }
 
-func (c *consumer) Register(_ context.Context, p *pipeline.Pipeline) error {
+func (c *Consumer) Register(_ context.Context, p *pipeline.Pipeline) error {
 	c.pipeline.Store(p)
 	return nil
 }
 
-func (c *consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
+func (c *Consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
 	start := time.Now()
 	const op = errors.Op("sqs_run")
 
@@ -357,7 +307,7 @@ func (c *consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
 	return nil
 }
 
-func (c *consumer) Stop(context.Context) error {
+func (c *Consumer) Stop(context.Context) error {
 	start := time.Now()
 	if atomic.LoadUint32(&c.listeners) > 0 {
 		c.pauseCh <- struct{}{}
@@ -368,7 +318,7 @@ func (c *consumer) Stop(context.Context) error {
 	return nil
 }
 
-func (c *consumer) Pause(_ context.Context, p string) {
+func (c *Consumer) Pause(_ context.Context, p string) {
 	start := time.Now()
 	// load atomic value
 	pipe := c.pipeline.Load().(*pipeline.Pipeline)
@@ -391,7 +341,7 @@ func (c *consumer) Pause(_ context.Context, p string) {
 	c.log.Debug("pipeline was paused", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
 }
 
-func (c *consumer) Resume(_ context.Context, p string) {
+func (c *Consumer) Resume(_ context.Context, p string) {
 	start := time.Now()
 	// load atomic value
 	pipe := c.pipeline.Load().(*pipeline.Pipeline)
@@ -415,7 +365,7 @@ func (c *consumer) Resume(_ context.Context, p string) {
 	c.log.Debug("pipeline was resumed", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
 }
 
-func (c *consumer) handleItem(ctx context.Context, msg *Item) error {
+func (c *Consumer) handleItem(ctx context.Context, msg *Item) error {
 	d, err := msg.pack(c.queueURL)
 	if err != nil {
 		return err
@@ -426,6 +376,41 @@ func (c *consumer) handleItem(ctx context.Context, msg *Item) error {
 	}
 
 	return nil
+}
+
+func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string) (*sqs.Client, error) {
+	const op = errors.Op("check_env")
+	var client *sqs.Client
+
+	switch insideAWS {
+	case true:
+		awsConf, err := config.LoadDefaultConfig(context.Background())
+		if err != nil {
+			return nil, errors.E(op, err)
+		}
+
+		// config with retries
+		client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
+			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
+				opts.MaxAttempts = 60
+			})
+		})
+	case false:
+		awsConf, err := config.LoadDefaultConfig(context.Background(),
+			config.WithRegion(region),
+			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, sessionToken)))
+		if err != nil {
+			return nil, errors.E(op, err)
+		}
+		// config with retries
+		client = sqs.NewFromConfig(awsConf, sqs.WithEndpointResolver(sqs.EndpointResolverFromURL(endpoint)), func(o *sqs.Options) {
+			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
+				opts.MaxAttempts = 60
+			})
+		})
+	}
+
+	return client, nil
 }
 
 func ready(r uint32) bool {

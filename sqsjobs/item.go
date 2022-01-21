@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	json "github.com/json-iterator/go"
+	"github.com/goccy/go-json"
 	"github.com/roadrunner-server/api/v2/plugins/jobs"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/utils"
@@ -207,7 +207,7 @@ func (i *Item) pack(queue *string) (*sqs.SendMessageInput, error) {
 	}, nil
 }
 
-func (c *consumer) unpack(msg *types.Message) (*Item, error) {
+func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
 	const op = errors.Op("sqs_unpack")
 	// reserved
 	if _, ok := msg.Attributes[ApproximateReceiveCount]; !ok {

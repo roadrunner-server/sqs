@@ -19,7 +19,7 @@ const (
 	NonExistentQueue string = "AWS.SimpleQueueService.NonExistentQueue"
 )
 
-func (c *consumer) listen(ctx context.Context) { //nolint:gocognit
+func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
 	for {
 		select {
 		case <-c.pauseCh:
@@ -37,10 +37,10 @@ func (c *consumer) listen(ctx context.Context) { //nolint:gocognit
 				WaitTimeSeconds:   c.waitTime,
 			})
 
-			if err != nil {
-				if oErr, ok := (err).(*smithy.OperationError); ok {
-					if rErr, ok := oErr.Err.(*http.ResponseError); ok {
-						if apiErr, ok := rErr.Err.(*smithy.GenericAPIError); ok {
+			if err != nil { //nolint:nestif
+				if oErr, ok := (err).(*smithy.OperationError); ok { //nolint:errorlint
+					if rErr, ok := oErr.Err.(*http.ResponseError); ok { //nolint:errorlint
+						if apiErr, ok := rErr.Err.(*smithy.GenericAPIError); ok { //nolint:errorlint
 							// in case of NonExistentQueue - recreate the queue
 							if apiErr.Code == NonExistentQueue {
 								c.log.Error("receive message", zap.String("error code", apiErr.ErrorCode()), zap.String("message", apiErr.ErrorMessage()), zap.String("error fault", apiErr.ErrorFault().String()))
