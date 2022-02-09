@@ -1,14 +1,19 @@
 package sqsjobs
 
-import "github.com/aws/aws-sdk-go-v2/aws"
+import (
+	"os"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+)
 
 const (
-	attributes string = "attributes"
-	tags       string = "tags"
-	queue      string = "queue"
-	pref       string = "prefetch"
-	visibility string = "visibility_timeout"
-	waitTime   string = "wait_time"
+	attributes     string = "attributes"
+	tags           string = "tags"
+	queue          string = "queue"
+	pref           string = "prefetch"
+	visibility     string = "visibility_timeout"
+	messageGroupID string = "message_group_id"
+	waitTime       string = "wait_time"
 )
 
 // Config is used to parse pipeline configuration
@@ -47,6 +52,19 @@ type Config struct {
 	//
 	// This member is required.
 	Queue *string `mapstructure:"queue"`
+
+	/*
+		link: https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SendMessage.html
+		This parameter applies only to FIFO (first-in-first-out) queues.
+		The tag that specifies that a message belongs to a specific message group. Messages that belong to the same message group are processed in a FIFO manner
+		(however, messages in different message groups might be processed out of order).
+		To interleave multiple ordered streams within a single queue, use MessageGroupId values (for example, session data for multiple users).
+		In this scenario, multiple consumers can process the queue, but the session data of each user is processed in a FIFO fashion.
+		You must associate a non-empty MessageGroupId with a message. If you don't provide a MessageGroupId, the action fails.
+		ReceiveMessage might return messages with multiple MessageGroupId values. For each MessageGroupId, the messages are sorted by time sent. The caller can't specify a MessageGroupId.
+		The length of MessageGroupId is 128 characters. Valid values: alphanumeric characters and punctuation (!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~).
+	*/
+	MessageGroupID string `mapstructure:"message_group_id"`
 
 	// A map of attributes with their corresponding values. The following lists the
 	// names, descriptions, and values of the special request parameters that the
@@ -101,11 +119,27 @@ func (c *Config) InitDefault() {
 		c.WaitTimeSeconds = 5
 	}
 
-	if c.Attributes == nil {
+	if c.Attributes != nil {
+		newAttr := make(map[string]string, len(c.Attributes))
+		toAwsAttribute(c.Attributes, newAttr)
+		// clear old map
+		for k := range c.Attributes {
+			delete(c.Attributes, k)
+		}
+
+		c.Attributes = newAttr
+	} else {
 		c.Attributes = make(map[string]string)
 	}
 
 	if c.Tags == nil {
 		c.Tags = make(map[string]string)
+	}
+
+	if str := os.Getenv("RR_TEST_ENV"); str != "" {
+		c.Region = os.Getenv("RR_SQS_TEST_REGION")
+		c.Key = os.Getenv("RR_SQS_TEST_KEY")
+		c.Secret = os.Getenv("RR_SQS_TEST_SECRET")
+		c.Endpoint = os.Getenv("RR_SQS_TEST_ENDPOINT")
 	}
 }

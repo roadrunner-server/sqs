@@ -10,11 +10,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/google/uuid"
+	"github.com/aws/smithy-go"
 	cfgPlugin "github.com/roadrunner-server/api/v2/plugins/config"
 	"github.com/roadrunner-server/api/v2/plugins/jobs"
 	"github.com/roadrunner-server/api/v2/plugins/jobs/pipeline"
@@ -98,7 +99,7 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 	jb := &Consumer{
 		pq:                pq,
 		log:               log,
-		messageGroupID:    uuid.NewString(),
+		messageGroupID:    conf.MessageGroupID,
 		attributes:        conf.Attributes,
 		tags:              conf.Tags,
 		queue:             conf.Queue,
@@ -114,13 +115,10 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 		return nil, errors.E(op, err)
 	}
 
-	out, err := jb.client.CreateQueue(context.Background(), &sqs.CreateQueueInput{QueueName: jb.queue, Attributes: jb.attributes, Tags: jb.tags})
+	jb.queueURL, err = createQueue(jb.client, jb.queue, jb.attributes, jb.tags)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
-
-	// assign a queue URL
-	jb.queueURL = out.QueueUrl
 
 	// To successfully create a new queue, you must provide a
 	// queue name that adheres to the limits related to queues
@@ -178,7 +176,7 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 	jb := &Consumer{
 		pq:                pq,
 		log:               log,
-		messageGroupID:    uuid.NewString(),
+		messageGroupID:    pipe.String(messageGroupID, ""),
 		attributes:        attr,
 		tags:              tg,
 		queue:             aws.String(pipe.String(queue, "default")),
@@ -195,13 +193,10 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 		return nil, errors.E(op, err)
 	}
 
-	out, err := jb.client.CreateQueue(context.Background(), &sqs.CreateQueueInput{QueueName: jb.queue, Attributes: jb.attributes, Tags: jb.tags})
+	jb.queueURL, err = createQueue(jb.client, jb.queue, jb.attributes, jb.tags)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
-
-	// assign a queue URL
-	jb.queueURL = out.QueueUrl
 
 	// To successfully create a new queue, you must provide a
 	// queue name that adheres to the limits related to queues
@@ -366,7 +361,7 @@ func (c *Consumer) Resume(_ context.Context, p string) {
 }
 
 func (c *Consumer) handleItem(ctx context.Context, msg *Item) error {
-	d, err := msg.pack(c.queueURL)
+	d, err := msg.pack(c.queueURL, c.messageGroupID)
 	if err != nil {
 		return err
 	}
@@ -429,4 +424,30 @@ func isInAWS() bool {
 	}
 	_ = resp.Body.Close()
 	return resp.StatusCode == http.StatusOK
+}
+
+func createQueue(client *sqs.Client, queueName *string, attributes map[string]string, tags map[string]string) (*string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	out, err := client.CreateQueue(context.Background(), &sqs.CreateQueueInput{QueueName: queueName, Attributes: attributes, Tags: tags})
+	if err != nil {
+		if oErr, ok := (err).(*smithy.OperationError); ok { //nolint:errorlint
+			if rErr, ok := oErr.Err.(*awshttp.ResponseError); ok { //nolint:errorlint
+				if _, ok := rErr.Unwrap().(*types.QueueNameExists); ok { //nolint:errorlint
+					res, errQ := client.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
+						QueueName: queueName,
+					}, func(_ *sqs.Options) {})
+					if errQ != nil {
+						return nil, errQ
+					}
+
+					return res.QueueUrl, nil
+				}
+			}
+		}
+
+		return nil, err
+	}
+
+	return out.QueueUrl, nil
 }
