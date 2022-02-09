@@ -186,7 +186,7 @@ func fromJob(job *jobs.Job) *Item {
 	}
 }
 
-func (i *Item) pack(queue *string) (*sqs.SendMessageInput, error) {
+func (i *Item) pack(queue *string, mg string) (*sqs.SendMessageInput, error) {
 	// pack headers map
 	data, err := json.Marshal(i.Headers)
 	if err != nil {
@@ -197,6 +197,8 @@ func (i *Item) pack(queue *string) (*sqs.SendMessageInput, error) {
 		MessageBody:  aws.String(i.Payload),
 		QueueUrl:     queue,
 		DelaySeconds: int32(i.Options.Delay),
+		// message group used for the FIFO
+		MessageGroupId: mgr(mg),
 		MessageAttributes: map[string]types.MessageAttributeValue{
 			jobs.RRID:       {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(i.Ident)},
 			jobs.RRJob:      {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(i.Job)},
@@ -260,4 +262,11 @@ func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
 	}
 
 	return item, nil
+}
+
+func mgr(gr string) *string {
+	if gr == "" {
+		return nil
+	}
+	return aws.String(gr)
 }
