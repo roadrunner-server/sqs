@@ -361,7 +361,7 @@ func (c *Consumer) Resume(_ context.Context, p string) {
 }
 
 func (c *Consumer) handleItem(ctx context.Context, msg *Item) error {
-	d, err := msg.pack(c.queueURL, c.messageGroupID)
+	d, err := msg.pack(c.queueURL, c.queue, c.messageGroupID)
 	if err != nil {
 		return err
 	}
@@ -431,12 +431,14 @@ func isInAWS() bool {
 func createQueue(client *sqs.Client, queueName *string, attributes map[string]string, tags map[string]string) (*string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	out, err := client.CreateQueue(context.Background(), &sqs.CreateQueueInput{QueueName: queueName, Attributes: attributes, Tags: tags})
+	out, err := client.CreateQueue(ctx, &sqs.CreateQueueInput{QueueName: queueName, Attributes: attributes, Tags: tags})
 	if err != nil {
 		if oErr, ok := (err).(*smithy.OperationError); ok { //nolint:errorlint
 			if rErr, ok := oErr.Err.(*awshttp.ResponseError); ok { //nolint:errorlint
 				if _, ok := rErr.Unwrap().(*types.QueueNameExists); ok { //nolint:errorlint
-					res, errQ := client.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{
+					ctxGet, cancelGet := context.WithTimeout(context.Background(), time.Second*30)
+					defer cancelGet()
+					res, errQ := client.GetQueueUrl(ctxGet, &sqs.GetQueueUrlInput{
 						QueueName: queueName,
 					}, func(_ *sqs.Options) {})
 					if errQ != nil {
