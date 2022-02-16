@@ -376,10 +376,12 @@ func (c *Consumer) handleItem(ctx context.Context, msg *Item) error {
 func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string) (*sqs.Client, error) {
 	const op = errors.Op("check_env")
 	var client *sqs.Client
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
 
 	switch insideAWS {
 	case true:
-		awsConf, err := config.LoadDefaultConfig(context.Background())
+		awsConf, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
 			return nil, errors.E(op, err)
 		}
@@ -391,7 +393,7 @@ func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string
 			})
 		})
 	case false:
-		awsConf, err := config.LoadDefaultConfig(context.Background(),
+		awsConf, err := config.LoadDefaultConfig(ctx,
 			config.WithRegion(region),
 			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, sessionToken)))
 		if err != nil {
