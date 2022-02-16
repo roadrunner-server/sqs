@@ -3,12 +3,14 @@ package sqsjobs
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/goccy/go-json"
+	"github.com/google/uuid"
 	"github.com/roadrunner-server/api/v2/plugins/jobs"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/utils"
@@ -19,6 +21,7 @@ const (
 	NumberType              string = "Number"
 	BinaryType              string = "Binary"
 	ApproximateReceiveCount string = "ApproximateReceiveCount"
+	fifoSuffix              string = ".fifo"
 )
 
 // immutable
@@ -186,7 +189,7 @@ func fromJob(job *jobs.Job) *Item {
 	}
 }
 
-func (i *Item) pack(queue *string, mg string) (*sqs.SendMessageInput, error) {
+func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInput, error) {
 	// pack headers map
 	data, err := json.Marshal(i.Headers)
 	if err != nil {
@@ -194,9 +197,10 @@ func (i *Item) pack(queue *string, mg string) (*sqs.SendMessageInput, error) {
 	}
 
 	return &sqs.SendMessageInput{
-		MessageBody:  aws.String(i.Payload),
-		QueueUrl:     queue,
-		DelaySeconds: int32(i.Options.Delay),
+		MessageBody:            aws.String(i.Payload),
+		QueueUrl:               queueURL,
+		DelaySeconds:           int32(i.Options.Delay),
+		MessageDeduplicationId: dedup(i.ID(), origQueue),
 		// message group used for the FIFO
 		MessageGroupId: mgr(mg),
 		MessageAttributes: map[string]types.MessageAttributeValue{
@@ -269,4 +273,16 @@ func mgr(gr string) *string {
 		return nil
 	}
 	return aws.String(gr)
+}
+
+func dedup(dedup string, origQueue *string) *string {
+	if strings.HasSuffix(*origQueue, fifoSuffix) {
+		if dedup == "" {
+			return aws.String(uuid.NewString())
+		}
+
+		return aws.String(dedup)
+	}
+
+	return nil
 }
