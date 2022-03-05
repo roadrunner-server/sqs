@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.9.0
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.17.0
 	github.com/aws/smithy-go v1.11.0
-	github.com/goccy/go-json v0.9.4
+	github.com/goccy/go-json v0.9.5
 	github.com/google/uuid v1.3.0
 	github.com/roadrunner-server/api/v2 v2.10.0
 	github.com/roadrunner-server/errors v1.1.1
@@ -29,6 +29,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/roadrunner-server/tcplisten v1.1.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/multierr v1.7.0 // indirect
+	go.uber.org/multierr v1.8.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
