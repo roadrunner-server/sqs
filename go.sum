@@ -48,8 +48,6 @@ github.com/roadrunner-server/api/v2 v2.14.0 h1:U7CrMXv5h8qlO9vvqdvPDK0g+zMLwcERU
 github.com/roadrunner-server/api/v2 v2.14.0/go.mod h1:COjb3T7DYHydaKIfino/N8gVa8op1jGAXFF+qKHMnk0=
 github.com/roadrunner-server/errors v1.1.2 h1:+LPw9Akgg+8LAGM4wASMWLAoBIbyP+mhNfR+FBS2Slw=
 github.com/roadrunner-server/errors v1.1.2/go.mod h1:jVSh32nFtRMzKItYUM9W2CTLLpXAM8HseL2lUENPYtU=
-github.com/roadrunner-server/sdk/v2 v2.13.0 h1:390lH0eqP1/PEP/GZk27A9YH43Utez/qqtaBviTCOAU=
-github.com/roadrunner-server/sdk/v2 v2.13.0/go.mod h1:katxDBnU7298CaluLBRgHEJOSobkCuzcXH1PcrcMZY4=
 github.com/roadrunner-server/sdk/v2 v2.13.1 h1:DZHWwp63xa4dvUaflJ4PaRN+GOEGrD2H1btKcg/UrZQ=
 github.com/roadrunner-server/sdk/v2 v2.13.1/go.mod h1:katxDBnU7298CaluLBRgHEJOSobkCuzcXH1PcrcMZY4=
 github.com/roadrunner-server/tcplisten v1.1.2 h1:GBjKlSEbA67UB2y83rFWsQKqMQGyalhTN9Q9HCIMBC0=
