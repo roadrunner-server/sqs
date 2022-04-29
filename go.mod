@@ -10,7 +10,7 @@ require (
 	github.com/aws/smithy-go v1.11.2
 	github.com/goccy/go-json v0.9.7
 	github.com/google/uuid v1.3.0
-	github.com/roadrunner-server/api/v2 v2.14.0
+	github.com/roadrunner-server/api/v2 v2.16.0
 	github.com/roadrunner-server/errors v1.1.2
 	github.com/roadrunner-server/sdk/v2 v2.13.3
 	github.com/stretchr/testify v1.7.1
