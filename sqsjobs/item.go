@@ -31,6 +31,7 @@ var itemAttributes = []string{ //nolint:gochecknoglobals
 	jobs.RRDelay,
 	jobs.RRPriority,
 	jobs.RRHeaders,
+	jobs.RRAutoAck,
 }
 
 type Item struct {
@@ -61,6 +62,9 @@ type Options struct {
 
 	// Delay defines time duration to delay execution for. Defaults to none.
 	Delay int64 `json:"delay,omitempty"`
+
+	// AutoAck jobs after receive it from the queue
+	AutoAck bool `json:"auto_ack"`
 
 	// Private ================
 	approxReceiveCount int64
@@ -108,6 +112,10 @@ func (i *Item) Context() ([]byte, error) {
 }
 
 func (i *Item) Ack() error {
+	// just return in case of auto-ack
+	if i.Options.AutoAck {
+		return nil
+	}
 	_, err := i.Options.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
 		QueueUrl:      i.Options.queue,
 		ReceiptHandle: i.Options.receiptHandler,
@@ -121,6 +129,11 @@ func (i *Item) Ack() error {
 }
 
 func (i *Item) Nack() error {
+	// message already deleted
+	if i.Options.AutoAck {
+		return nil
+	}
+
 	// requeue message
 	err := i.Options.requeueFn(context.Background(), i)
 	if err != nil {
@@ -150,14 +163,17 @@ func (i *Item) Requeue(headers map[string][]string, delay int64) error {
 		return err
 	}
 
-	// Delete job from the queue only after successful requeue
-	_, err = i.Options.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
-		QueueUrl:      i.Options.queue,
-		ReceiptHandle: i.Options.receiptHandler,
-	})
+	// in case of auto_ack a message was already deleted from the queue
+	if !i.Options.AutoAck {
+		// Delete job from the queue only after successful requeue
+		_, err = i.Options.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
+			QueueUrl:      i.Options.queue,
+			ReceiptHandle: i.Options.receiptHandler,
+		})
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -185,6 +201,7 @@ func fromJob(job *jobs.Job) *Item {
 			Priority: job.Options.Priority,
 			Pipeline: job.Options.Pipeline,
 			Delay:    job.Options.Delay,
+			AutoAck:  job.Options.AutoAck,
 		},
 	}
 }
@@ -209,6 +226,7 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 			jobs.RRDelay:    {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(strconv.Itoa(int(i.Options.Delay)))},
 			jobs.RRHeaders:  {DataType: aws.String(BinaryType), BinaryValue: data, BinaryListValues: nil, StringListValues: nil, StringValue: nil},
 			jobs.RRPriority: {DataType: aws.String(NumberType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(strconv.Itoa(int(i.Options.Priority)))},
+			jobs.RRAutoAck:  {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(btos(i.Options.AutoAck))},
 		},
 	}, nil
 }
@@ -232,7 +250,7 @@ func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
 		return nil, err
 	}
 
-	delay, err := strconv.Atoi(*msg.MessageAttributes[jobs.RRDelay].StringValue)
+	d, err := strconv.Atoi(*msg.MessageAttributes[jobs.RRDelay].StringValue)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
@@ -253,7 +271,8 @@ func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
 		Payload: *msg.Body,
 		Headers: h,
 		Options: &Options{
-			Delay:    int64(delay),
+			AutoAck:  stob(*msg.MessageAttributes[jobs.RRAutoAck].StringValue),
+			Delay:    int64(d),
 			Priority: int64(priority),
 
 			// private
@@ -275,13 +294,13 @@ func mgr(gr string) *string {
 	return aws.String(gr)
 }
 
-func dedup(dedup string, origQueue *string) *string {
+func dedup(d string, origQueue *string) *string {
 	if strings.HasSuffix(*origQueue, fifoSuffix) {
-		if dedup == "" {
+		if d == "" {
 			return aws.String(uuid.NewString())
 		}
 
-		return aws.String(dedup)
+		return aws.String(d)
 	}
 
 	return nil
@@ -293,4 +312,16 @@ func delay(origQueue *string, delay int32) int32 {
 	}
 
 	return delay
+}
+
+func btos(b bool) string {
+	if b {
+		return "true"
+	}
+
+	return "false"
+}
+
+func stob(s string) bool {
+	return s == "true"
 }

@@ -296,7 +296,7 @@ func (c *Consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
 
 	// start listener
 	// TODO(rustatian) context with cancel to cancel receive operation on stop
-	go c.listen(context.Background())
+	c.listen(context.Background())
 
 	c.log.Debug("pipeline is active", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", start), zap.Duration("elapsed", time.Since(start)))
 	return nil
@@ -336,7 +336,7 @@ func (c *Consumer) Pause(_ context.Context, p string) {
 	c.log.Debug("pipeline was paused", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
 }
 
-func (c *Consumer) Resume(_ context.Context, p string) {
+func (c *Consumer) Resume(ctx context.Context, p string) {
 	start := time.Now()
 	// load atomic value
 	pipe := c.pipeline.Load().(*pipeline.Pipeline)
@@ -353,7 +353,7 @@ func (c *Consumer) Resume(_ context.Context, p string) {
 	}
 
 	// start listener
-	go c.listen(context.Background())
+	c.listen(context.Background())
 
 	// increase num of listeners
 	atomic.AddUint32(&c.listeners, 1)
