@@ -24,6 +24,9 @@ const (
 	fifoSuffix              string = ".fifo"
 )
 
+// RequeueFn is function used to requeue the item
+type RequeueFn = func(context.Context, *Item) error
+
 // immutable
 var itemAttributes = []string{ //nolint:gochecknoglobals
 	jobs.RRID,
@@ -71,7 +74,7 @@ type Options struct {
 	queue              *string
 	receiptHandler     *string
 	client             *sqs.Client
-	requeueFn          func(context.Context, *Item) error
+	requeueFn          RequeueFn
 }
 
 // DelayDuration returns delay duration in a form of time.Duration.
