@@ -126,7 +126,7 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 	// and is unique within the scope of your queues. After you create a queue, you
 	// must wait at least one second after the queue is created to be able to use the <------------
 	// queue. To get the queue URL, use the GetQueueUrl action. GetQueueUrl require
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second)
 
 	return jb, nil
 }
