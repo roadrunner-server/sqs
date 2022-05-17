@@ -7,13 +7,15 @@ import (
 )
 
 const (
-	attributes     string = "attributes"
-	tags           string = "tags"
-	queue          string = "queue"
-	pref           string = "prefetch"
-	visibility     string = "visibility_timeout"
-	messageGroupID string = "message_group_id"
-	waitTime       string = "wait_time"
+	attributes           string = "attributes"
+	tags                 string = "tags"
+	queue                string = "queue"
+	pref                 string = "prefetch"
+	visibility           string = "visibility_timeout"
+	messageGroupID       string = "message_group_id"
+	waitTime             string = "wait_time"
+	skipQueueDeclaration string = "skip_queue_declaration"
+	consumeAll           string = "consume_all"
 )
 
 // Config is used to parse pipeline configuration
@@ -24,6 +26,12 @@ type Config struct {
 	Region       string `mapstructure:"region"`
 	SessionToken string `mapstructure:"session_token"`
 	Endpoint     string `mapstructure:"endpoint"`
+
+	// Consume all jobs
+	ConsumeAll bool `mapstructure:"consume_all"`
+
+	// get queue url, do not declare
+	SkipQueueDeclaration bool `mapstructure:"skip_queue_declaration"`
 
 	// The duration (in seconds) that the received messages are hidden from subsequent
 	// retrieve requests after being retrieved by a ReceiveMessage request.

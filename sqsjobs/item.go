@@ -14,6 +14,7 @@ import (
 	"github.com/roadrunner-server/api/v2/plugins/jobs"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v2/utils"
+	"go.uber.org/zap"
 )
 
 const (
@@ -34,7 +35,6 @@ var itemAttributes = []string{ //nolint:gochecknoglobals
 	jobs.RRDelay,
 	jobs.RRPriority,
 	jobs.RRHeaders,
-	jobs.RRAutoAck,
 }
 
 type Item struct {
@@ -182,15 +182,7 @@ func (i *Item) Requeue(headers map[string][]string, delay int64) error {
 	return nil
 }
 
-func (i *Item) Respond(data []byte, queue string) error {
-	const op = errors.Op("sqs_respond")
-	_, err := i.Options.client.SendMessage(context.Background(), &sqs.SendMessageInput{
-		MessageBody: aws.String(utils.AsString(data)),
-		QueueUrl:    aws.String(queue),
-	})
-	if err != nil {
-		return errors.E(op, err)
-	}
+func (i *Item) Respond(_ []byte, _ string) error {
 	return nil
 }
 
@@ -234,38 +226,80 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 	}, nil
 }
 
+func (c *Consumer) fromMsg(msg *types.Message) (*Item, error) {
+	item, err := c.unpack(msg)
+	if err != nil {
+		if errors.Is(errors.Decode, err) && c.consumeAll {
+			id := uuid.NewString()
+			c.log.Debug("get raw payload", zap.String("assigned ID", id))
+
+			var approxRecCount int
+			if val, ok := msg.Attributes[ApproximateReceiveCount]; ok {
+				approxRecCount, _ = strconv.Atoi(val)
+			}
+
+			return &Item{
+				Job:     auto,
+				Ident:   id,
+				Payload: checkBody(msg.Body),
+				Headers: convAttr(msg.Attributes),
+				Options: &Options{
+					Priority:           10,
+					Pipeline:           auto,
+					AutoAck:            false,
+					approxReceiveCount: int64(approxRecCount),
+					queue:              c.queue,
+					receiptHandler:     msg.ReceiptHandle,
+					client:             c.client,
+					requeueFn:          c.handleItem,
+				},
+			}, nil
+		}
+
+		return nil, err
+	}
+
+	return item, nil
+}
+
 func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
 	const op = errors.Op("sqs_unpack")
 	// reserved
 	if _, ok := msg.Attributes[ApproximateReceiveCount]; !ok {
-		return nil, errors.E(op, errors.Str("failed to unpack the ApproximateReceiveCount attribute"))
+		return nil, errors.E(op, errors.Str("failed to unpack the ApproximateReceiveCount attribute"), errors.Decode)
 	}
 
 	for i := 0; i < len(itemAttributes); i++ {
 		if _, ok := msg.MessageAttributes[itemAttributes[i]]; !ok {
-			return nil, errors.E(op, errors.Errorf("missing queue attribute: %s", itemAttributes[i]))
+			return nil, errors.E(op, errors.Errorf("missing queue attribute: %s", itemAttributes[i]), errors.Decode)
 		}
 	}
 
 	var h map[string][]string
 	err := json.Unmarshal(msg.MessageAttributes[jobs.RRHeaders].BinaryValue, &h)
 	if err != nil {
-		return nil, err
+		return nil, errors.E(op, errors.Decode)
 	}
 
 	d, err := strconv.Atoi(*msg.MessageAttributes[jobs.RRDelay].StringValue)
 	if err != nil {
-		return nil, errors.E(op, err)
+		return nil, errors.E(op, err, errors.Decode)
 	}
 
 	priority, err := strconv.Atoi(*msg.MessageAttributes[jobs.RRPriority].StringValue)
 	if err != nil {
-		return nil, errors.E(op, err)
+		return nil, errors.E(op, err, errors.Decode)
 	}
 
 	recCount, err := strconv.Atoi(msg.Attributes[ApproximateReceiveCount])
 	if err != nil {
-		return nil, errors.E(op, err)
+		return nil, errors.E(op, err, errors.Decode)
+	}
+
+	// for the existing messages, auto_ack field might be absent
+	var autoAck bool
+	if aa, ok := msg.MessageAttributes[jobs.RRAutoAck]; ok {
+		autoAck = stob(aa.StringValue)
 	}
 
 	item := &Item{
@@ -274,7 +308,7 @@ func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
 		Payload: *msg.Body,
 		Headers: h,
 		Options: &Options{
-			AutoAck:  stob(*msg.MessageAttributes[jobs.RRAutoAck].StringValue),
+			AutoAck:  autoAck,
 			Delay:    int64(d),
 			Priority: int64(priority),
 
@@ -325,6 +359,17 @@ func btos(b bool) string {
 	return "false"
 }
 
-func stob(s string) bool {
-	return s == "true"
+func stob(s *string) bool {
+	if s != nil {
+		return *s == "true"
+	}
+
+	return false
+}
+
+func checkBody(body *string) string {
+	if body == nil {
+		return ""
+	}
+	return *body
 }
