@@ -31,9 +31,11 @@ const (
 
 type Consumer struct {
 	sync.Mutex
-	pq       priorityqueue.Queue
-	log      *zap.Logger
-	pipeline atomic.Value
+	pq          priorityqueue.Queue
+	log         *zap.Logger
+	pipeline    atomic.Value
+	consumeAll  bool
+	skipDeclare bool
 
 	// connection info
 	queue             *string
@@ -99,6 +101,8 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 	jb := &Consumer{
 		pq:                pq,
 		log:               log,
+		consumeAll:        conf.ConsumeAll,
+		skipDeclare:       conf.SkipQueueDeclaration,
 		messageGroupID:    conf.MessageGroupID,
 		attributes:        conf.Attributes,
 		tags:              conf.Tags,
@@ -115,7 +119,8 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 		return nil, errors.E(op, err)
 	}
 
-	jb.queueURL, err = createQueue(jb.client, jb.queue, jb.attributes, jb.tags)
+	// if the queue is already declared and user do not want to
+	err = manageQueue(jb)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
@@ -179,6 +184,8 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 		messageGroupID:    pipe.String(messageGroupID, ""),
 		attributes:        attr,
 		tags:              tg,
+		consumeAll:        pipe.Bool(consumeAll, false),
+		skipDeclare:       pipe.Bool(skipQueueDeclaration, false),
 		queue:             aws.String(pipe.String(queue, "default")),
 		prefetch:          int32(pipe.Int(pref, 10)),
 		visibilityTimeout: int32(pipe.Int(visibility, 0)),
@@ -193,7 +200,8 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 		return nil, errors.E(op, err)
 	}
 
-	jb.queueURL, err = createQueue(jb.client, jb.queue, jb.attributes, jb.tags)
+	// if the queue is already declared and user do not want to
+	err = manageQueue(jb)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
@@ -336,7 +344,7 @@ func (c *Consumer) Pause(_ context.Context, p string) {
 	c.log.Debug("pipeline was paused", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
 }
 
-func (c *Consumer) Resume(ctx context.Context, p string) {
+func (c *Consumer) Resume(_ context.Context, p string) {
 	start := time.Now()
 	// load atomic value
 	pipe := c.pipeline.Load().(*pipeline.Pipeline)
@@ -428,6 +436,24 @@ func isInAWS() bool {
 	return resp.StatusCode == http.StatusOK
 }
 
+func manageQueue(jb *Consumer) error {
+	var err error
+	switch jb.skipDeclare {
+	case true:
+		jb.queueURL, err = getQueueURL(jb.client, jb.queue)
+		if err != nil {
+			return err
+		}
+	case false:
+		jb.queueURL, err = createQueue(jb.client, jb.queue, jb.attributes, jb.tags)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func createQueue(client *sqs.Client, queueName *string, attributes map[string]string, tags map[string]string) (*string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -450,6 +476,17 @@ func createQueue(client *sqs.Client, queueName *string, attributes map[string]st
 			}
 		}
 
+		return nil, err
+	}
+
+	return out.QueueUrl, nil
+}
+
+func getQueueURL(client *sqs.Client, queueName *string) (*string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+	out, err := client.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{QueueName: queueName})
+	if err != nil {
 		return nil, err
 	}
 

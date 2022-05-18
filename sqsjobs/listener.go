@@ -17,6 +17,9 @@ const (
 
 	// NonExistentQueue AWS error code
 	NonExistentQueue string = "AWS.SimpleQueueService.NonExistentQueue"
+
+	// consume all
+	auto string = "deduced_by_rr"
 )
 
 func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
@@ -69,7 +72,7 @@ func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
 				for i := 0; i < len(message.Messages); i++ {
 					m := message.Messages[i]
 					c.log.Debug("receive message", zap.Stringp("ID", m.MessageId))
-					item, errUnp := c.unpack(&m)
+					item, errUnp := c.fromMsg(&m)
 					if errUnp != nil {
 						_, errD := c.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
 							QueueUrl:      c.queueURL,
