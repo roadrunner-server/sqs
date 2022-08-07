@@ -238,6 +238,35 @@ func (c *Consumer) fromMsg(msg *types.Message) (*Item, error) {
 				approxRecCount, _ = strconv.Atoi(val)
 			}
 
+			// if body exists, check it if it's a json
+			// if not, marshal to json
+			if msg.Body != nil {
+				var data []byte
+				if isJSONEncoded(msg.Body) != nil {
+					data, err = json.Marshal(msg.Body)
+					if err != nil {
+						return nil, err
+					}
+				}
+
+				return &Item{
+					Job:     auto,
+					Ident:   id,
+					Payload: utils.AsString(data),
+					Headers: convAttr(msg.Attributes),
+					Options: &Options{
+						Priority:           10,
+						Pipeline:           auto,
+						AutoAck:            false,
+						approxReceiveCount: int64(approxRecCount),
+						queue:              c.queue,
+						receiptHandler:     msg.ReceiptHandle,
+						client:             c.client,
+						requeueFn:          c.handleItem,
+					},
+				}, nil
+			}
+
 			return &Item{
 				Job:     auto,
 				Ident:   id,
@@ -372,4 +401,9 @@ func checkBody(body *string) string {
 		return ""
 	}
 	return *body
+}
+
+func isJSONEncoded(data *string) error {
+	var a any
+	return json.Unmarshal(utils.AsBytes(*data), &a)
 }
