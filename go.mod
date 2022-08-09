@@ -3,11 +3,11 @@ module github.com/roadrunner-server/sqs/v2
 go 1.19
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.16.9
+	github.com/aws/aws-sdk-go-v2 v1.16.10
 	github.com/aws/aws-sdk-go-v2/config v1.15.16
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.11
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.2
-	github.com/aws/smithy-go v1.12.0
+	github.com/aws/smithy-go v1.12.1
 	github.com/goccy/go-json v0.9.10
 	github.com/google/uuid v1.3.0
 	github.com/roadrunner-server/api/v2 v2.20.1
