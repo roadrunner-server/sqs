@@ -25,12 +25,13 @@ import (
 )
 
 const (
-	pluginName     string = "sqs"
-	awsMetaDataURL string = "http://169.254.169.254/latest/dynamic/instance-identity/"
+	pluginName           string = "sqs"
+	awsMetaDataURL       string = "http://169.254.169.254/latest/dynamic/instance-identity/"
+	awsMetaDataIMDSv2URL string = "http://169.254.169.254/latest/api/token"
 )
 
 type Consumer struct {
-	sync.Mutex
+	mu          sync.Mutex
 	pq          priorityqueue.Queue
 	log         *zap.Logger
 	pipeline    atomic.Value
@@ -293,8 +294,8 @@ func (c *Consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
 	start := time.Now()
 	const op = errors.Op("sqs_run")
 
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	pipe := c.pipeline.Load().(*pipeline.Pipeline)
 	if pipe.Name() != p.Name() {
@@ -425,7 +426,10 @@ func ready(r uint32) bool {
 
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/identify_ec2_instances.html
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
 func isInAWS() bool {
+	// if one of the methods is fine -> we're in the AWS
+
 	client := &http.Client{
 		Timeout: time.Second * 2,
 	}
@@ -434,6 +438,27 @@ func isInAWS() bool {
 		return false
 	}
 	_ = resp.Body.Close()
+
+	// probably we're in the IMDSv2, let's try different endpoint
+	if resp.StatusCode != http.StatusOK {
+		req, err2 := http.NewRequestWithContext(context.Background(), http.MethodPut, awsMetaDataIMDSv2URL, nil)
+		if err2 != nil {
+			return false
+		}
+
+		// 10 seconds should be fine to just check
+		req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "10")
+
+		resp2, err2 := client.Do(req)
+		if err2 != nil {
+			return false
+		}
+
+		_ = resp2.Body.Close()
+
+		return resp.StatusCode == http.StatusOK
+	}
+
 	return resp.StatusCode == http.StatusOK
 }
 
