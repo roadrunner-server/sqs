@@ -144,6 +144,7 @@ func (c *Config) InitDefault() {
 		c.Tags = make(map[string]string)
 	}
 
+	// used for the tests
 	if str := os.Getenv("RR_TEST_ENV"); str != "" {
 		c.Region = os.Getenv("RR_SQS_TEST_REGION")
 		c.Key = os.Getenv("RR_SQS_TEST_KEY")

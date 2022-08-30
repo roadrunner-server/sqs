@@ -25,12 +25,14 @@ import (
 )
 
 const (
-	pluginName     string = "sqs"
-	awsMetaDataURL string = "http://169.254.169.254/latest/dynamic/instance-identity/"
+	pluginName           string = "sqs"
+	awsMetaDataURL       string = "http://169.254.169.254/latest/dynamic/instance-identity/"
+	awsMetaDataIMDSv2URL string = "http://169.254.169.254/latest/api/token"
+	awsTokenHeader       string = "X-aws-ec2-metadata-token-ttl-seconds" //nolint:gosec
 )
 
 type Consumer struct {
-	sync.Mutex
+	mu          sync.Mutex
 	pq          priorityqueue.Queue
 	log         *zap.Logger
 	pipeline    atomic.Value
@@ -66,7 +68,7 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 		2. AWS - configuration should be obtained from the env
 	*/
 	insideAWS := false
-	if isInAWS() {
+	if isInAWS() || isinAWSIMDSv2() {
 		insideAWS = true
 	}
 
@@ -145,7 +147,7 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 		2. AWS - configuration should be obtained from the env
 	*/
 	insideAWS := false
-	if isInAWS() {
+	if isInAWS() || isinAWSIMDSv2() {
 		insideAWS = true
 	}
 
@@ -293,8 +295,8 @@ func (c *Consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
 	start := time.Now()
 	const op = errors.Op("sqs_run")
 
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	pipe := c.pipeline.Load().(*pipeline.Pipeline)
 	if pipe.Name() != p.Name() {
@@ -433,7 +435,34 @@ func isInAWS() bool {
 	if err != nil {
 		return false
 	}
+
 	_ = resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
+}
+
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
+func isinAWSIMDSv2() bool {
+	client := &http.Client{
+		Timeout: time.Second * 2,
+	}
+
+	// probably we're in the IMDSv2, let's try different endpoint
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, awsMetaDataIMDSv2URL, nil)
+	if err != nil {
+		return false
+	}
+
+	// 10 seconds should be fine to just check
+	req.Header.Set(awsTokenHeader, "10")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+
+	_ = resp.Body.Close()
+
 	return resp.StatusCode == http.StatusOK
 }
 
