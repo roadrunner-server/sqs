@@ -28,6 +28,7 @@ const (
 	pluginName           string = "sqs"
 	awsMetaDataURL       string = "http://169.254.169.254/latest/dynamic/instance-identity/"
 	awsMetaDataIMDSv2URL string = "http://169.254.169.254/latest/api/token"
+	awsTokenHeader       string = "X-aws-ec2-metadata-token-ttl-seconds" //nolint:gosec
 )
 
 type Consumer struct {
@@ -67,7 +68,7 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg cfgPlugin.Configurer,
 		2. AWS - configuration should be obtained from the env
 	*/
 	insideAWS := false
-	if isInAWS() {
+	if isInAWS() || isinAWSIMDSv2() {
 		insideAWS = true
 	}
 
@@ -146,7 +147,7 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg cfgPlugin.Config
 		2. AWS - configuration should be obtained from the env
 	*/
 	insideAWS := false
-	if isInAWS() {
+	if isInAWS() || isinAWSIMDSv2() {
 		insideAWS = true
 	}
 
@@ -426,10 +427,7 @@ func ready(r uint32) bool {
 
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/identify_ec2_instances.html
-// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
 func isInAWS() bool {
-	// if one of the methods is fine -> we're in the AWS
-
 	client := &http.Client{
 		Timeout: time.Second * 2,
 	}
@@ -437,27 +435,33 @@ func isInAWS() bool {
 	if err != nil {
 		return false
 	}
+
 	_ = resp.Body.Close()
 
-	// probably we're in the IMDSv2, let's try different endpoint
-	if resp.StatusCode != http.StatusOK {
-		req, err2 := http.NewRequestWithContext(context.Background(), http.MethodPut, awsMetaDataIMDSv2URL, nil)
-		if err2 != nil {
-			return false
-		}
+	return resp.StatusCode == http.StatusOK
+}
 
-		// 10 seconds should be fine to just check
-		req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "10")
-
-		resp2, err2 := client.Do(req)
-		if err2 != nil {
-			return false
-		}
-
-		_ = resp2.Body.Close()
-
-		return resp.StatusCode == http.StatusOK
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
+func isinAWSIMDSv2() bool {
+	client := &http.Client{
+		Timeout: time.Second * 2,
 	}
+
+	// probably we're in the IMDSv2, let's try different endpoint
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, awsMetaDataIMDSv2URL, nil)
+	if err != nil {
+		return false
+	}
+
+	// 10 seconds should be fine to just check
+	req.Header.Set(awsTokenHeader, "10")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+
+	_ = resp.Body.Close()
 
 	return resp.StatusCode == http.StatusOK
 }
