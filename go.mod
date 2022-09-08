@@ -10,9 +10,9 @@ require (
 	github.com/aws/smithy-go v1.13.2
 	github.com/goccy/go-json v0.9.11
 	github.com/google/uuid v1.3.0
-	github.com/roadrunner-server/api/v2 v2.21.2
+	github.com/roadrunner-server/api/v2 v2.22.2-rc.1
 	github.com/roadrunner-server/errors v1.2.0
-	github.com/roadrunner-server/sdk/v2 v2.18.5
+	github.com/roadrunner-server/sdk/v2 v2.19.0-rc.1
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/zap v1.23.0
 )
