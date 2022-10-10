@@ -1,4 +1,4 @@
-module github.com/roadrunner-server/sqs/v2
+module github.com/roadrunner-server/sqs/v3
 
 go 1.19
 
@@ -10,9 +10,8 @@ require (
 	github.com/aws/smithy-go v1.13.3
 	github.com/goccy/go-json v0.9.11
 	github.com/google/uuid v1.3.0
-	github.com/roadrunner-server/api/v2 v2.23.0
 	github.com/roadrunner-server/errors v1.2.0
-	github.com/roadrunner-server/sdk/v2 v2.19.0
+	github.com/roadrunner-server/sdk/v3 v3.0.0-beta.3
 	github.com/stretchr/testify v1.8.0
 	go.uber.org/zap v1.23.0
 )
