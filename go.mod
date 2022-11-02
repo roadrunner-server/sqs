@@ -11,7 +11,7 @@ require (
 	github.com/goccy/go-json v0.9.11
 	github.com/google/uuid v1.3.0
 	github.com/roadrunner-server/errors v1.2.0
-	github.com/roadrunner-server/sdk/v3 v3.0.0-beta.4
+	github.com/roadrunner-server/sdk/v3 v3.0.0-beta.5
 	github.com/stretchr/testify v1.8.1
 	go.uber.org/zap v1.23.0
 )
