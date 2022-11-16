@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/aws/aws-sdk-go-v2 v1.17.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.13.0
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.13
 	github.com/aws/smithy-go v1.13.4
 	github.com/goccy/go-json v0.9.11
@@ -24,7 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.11.25 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.13.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.17.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.17.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/roadrunner-server/tcplisten v1.2.0 // indirect
