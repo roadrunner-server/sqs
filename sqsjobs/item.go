@@ -4,6 +4,8 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -70,6 +72,8 @@ type Options struct {
 	AutoAck bool `json:"auto_ack"`
 
 	// Private ================
+	cond               *sync.Cond
+	msgInFlight        *int64
 	approxReceiveCount int64
 	queue              *string
 	receiptHandler     *string
@@ -115,6 +119,10 @@ func (i *Item) Context() ([]byte, error) {
 }
 
 func (i *Item) Ack() error {
+	defer func() {
+		i.Options.cond.Signal()
+		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+	}()
 	// just return in case of auto-ack
 	if i.Options.AutoAck {
 		return nil
@@ -132,6 +140,10 @@ func (i *Item) Ack() error {
 }
 
 func (i *Item) Nack() error {
+	defer func() {
+		i.Options.cond.Signal()
+		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+	}()
 	// message already deleted
 	if i.Options.AutoAck {
 		return nil
@@ -156,6 +168,10 @@ func (i *Item) Nack() error {
 }
 
 func (i *Item) Requeue(headers map[string][]string, delay int64) error {
+	defer func() {
+		i.Options.cond.Signal()
+		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+	}()
 	// overwrite the delay
 	i.Options.Delay = delay
 	i.Headers = headers
@@ -228,45 +244,50 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 
 func (c *Consumer) fromMsg(msg *types.Message) (*Item, error) {
 	item, err := c.unpack(msg)
-	if err != nil {
-		if errors.Is(errors.Decode, err) && c.consumeAll {
-			id := uuid.NewString()
-			c.log.Debug("get raw payload", zap.String("assigned ID", id))
+	if err == nil {
+		return item, nil
+	}
 
-			var approxRecCount int
-			if val, ok := msg.Attributes[ApproximateReceiveCount]; ok {
-				approxRecCount, _ = strconv.Atoi(val)
-			}
+	switch {
+	case errors.Is(errors.Decode, err) && c.consumeAll:
+		id := uuid.NewString()
+		c.log.Debug("get raw payload", zap.String("assigned ID", id))
 
-			// if body exists, check it if it's a json
-			// if not, marshal to json
-			if msg.Body != nil {
-				var data []byte
-				if isJSONEncoded(msg.Body) != nil {
-					data, err = json.Marshal(msg.Body)
-					if err != nil {
-						return nil, err
-					}
+		var approxRecCount int
+		if val, ok := msg.Attributes[ApproximateReceiveCount]; ok {
+			approxRecCount, _ = strconv.Atoi(val)
+		}
+
+		switch {
+		case msg.Body != nil:
+			var data []byte
+			if isJSONEncoded(msg.Body) != nil {
+				data, err = json.Marshal(msg.Body)
+				if err != nil {
+					return nil, err
 				}
-
-				return &Item{
-					Job:     auto,
-					Ident:   id,
-					Payload: utils.AsString(data),
-					Headers: convAttr(msg.Attributes),
-					Options: &Options{
-						Priority:           10,
-						Pipeline:           auto,
-						AutoAck:            false,
-						approxReceiveCount: int64(approxRecCount),
-						queue:              c.queue,
-						receiptHandler:     msg.ReceiptHandle,
-						client:             c.client,
-						requeueFn:          c.handleItem,
-					},
-				}, nil
 			}
 
+			return &Item{
+				Job:     auto,
+				Ident:   id,
+				Payload: utils.AsString(data),
+				Headers: convAttr(msg.Attributes),
+				Options: &Options{
+					Priority:           10,
+					Pipeline:           auto,
+					AutoAck:            false,
+					approxReceiveCount: int64(approxRecCount),
+					queue:              c.queue,
+					receiptHandler:     msg.ReceiptHandle,
+					client:             c.client,
+					requeueFn:          c.handleItem,
+					// 2.12.1
+					msgInFlight: c.msgInFlight,
+					cond:        &c.cond,
+				},
+			}, nil
+		default:
 			return &Item{
 				Job:     auto,
 				Ident:   id,
@@ -281,14 +302,16 @@ func (c *Consumer) fromMsg(msg *types.Message) (*Item, error) {
 					receiptHandler:     msg.ReceiptHandle,
 					client:             c.client,
 					requeueFn:          c.handleItem,
+					// 2.12.1
+					msgInFlight: c.msgInFlight,
+					cond:        &c.cond,
 				},
 			}, nil
 		}
-
+	default:
+		c.log.Debug("failed to parse the message, might be should turn on: `consume_all:true` ?")
 		return nil, err
 	}
-
-	return item, nil
 }
 
 func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
@@ -347,6 +370,9 @@ func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
 			queue:              c.queueURL,
 			receiptHandler:     msg.ReceiptHandle,
 			requeueFn:          c.handleItem,
+			// 2.12.1
+			msgInFlight: c.msgInFlight,
+			cond:        &c.cond,
 		},
 	}
 
