@@ -39,18 +39,24 @@ type Configurer interface {
 }
 
 type Consumer struct {
-	mu          sync.Mutex
+	mu               sync.Mutex
+	cond             sync.Cond
+	msgInFlight      *int64
+	msgInFlightLimit *int32
+
 	pq          priorityqueue.Queue
 	log         *zap.Logger
 	pipeline    atomic.Value
 	consumeAll  bool
 	skipDeclare bool
 
+	// func to cancel listener
+	cancel context.CancelFunc
+
 	// connection info
 	queue             *string
 	messageGroupID    string
 	waitTime          int32
-	prefetch          int32
 	visibilityTimeout int32
 
 	// if user invoke several resume operations
@@ -108,6 +114,7 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg Configurer, pq priori
 
 	// initialize job Consumer
 	jb := &Consumer{
+		cond:              sync.Cond{L: &sync.Mutex{}},
 		pq:                pq,
 		log:               log,
 		consumeAll:        conf.ConsumeAll,
@@ -116,10 +123,12 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg Configurer, pq priori
 		attributes:        conf.Attributes,
 		tags:              conf.Tags,
 		queue:             conf.Queue,
-		prefetch:          conf.Prefetch,
 		visibilityTimeout: conf.VisibilityTimeout,
 		waitTime:          conf.WaitTimeSeconds,
 		pauseCh:           make(chan struct{}, 1),
+		// new in 2.12.1
+		msgInFlightLimit: ptr(conf.Prefetch),
+		msgInFlight:      ptr(int64(0)),
 	}
 
 	// PARSE CONFIGURATION -------
@@ -188,6 +197,7 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg Configurer, pq p
 
 	// initialize job Consumer
 	jb := &Consumer{
+		cond:              sync.Cond{L: &sync.Mutex{}},
 		pq:                pq,
 		log:               log,
 		messageGroupID:    pipe.String(messageGroupID, ""),
@@ -196,10 +206,12 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg Configurer, pq p
 		consumeAll:        pipe.Bool(consumeAll, false),
 		skipDeclare:       pipe.Bool(skipQueueDeclaration, false),
 		queue:             aws.String(pipe.String(queue, "default")),
-		prefetch:          int32(pipe.Int(pref, 10)),
 		visibilityTimeout: int32(pipe.Int(visibility, 0)),
 		waitTime:          int32(pipe.Int(waitTime, 0)),
 		pauseCh:           make(chan struct{}, 1),
+		// new in 2.12.1
+		msgInFlightLimit: ptr(int32(pipe.Int(pref, 10))),
+		msgInFlight:      ptr(int64(0)),
 	}
 
 	// PARSE CONFIGURATION -------
@@ -313,8 +325,9 @@ func (c *Consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
 	atomic.AddUint32(&c.listeners, 1)
 
 	// start listener
-	// TODO(rustatian) context with cancel to cancel receive operation on stop
-	c.listen(context.Background())
+	var ctx context.Context
+	ctx, c.cancel = context.WithCancel(context.Background())
+	c.listen(ctx)
 
 	c.log.Debug("pipeline is active", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", start), zap.Duration("elapsed", time.Since(start)))
 	return nil
@@ -322,7 +335,14 @@ func (c *Consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
 
 func (c *Consumer) Stop(context.Context) error {
 	start := time.Now()
+
 	if atomic.LoadUint32(&c.listeners) > 0 {
+		if c.cancel != nil {
+			c.cancel()
+		}
+		// if blocked, let 1 item to pass to unblock the listener and close the pipe
+		c.cond.Signal()
+
 		c.pauseCh <- struct{}{}
 	}
 
@@ -349,8 +369,15 @@ func (c *Consumer) Pause(_ context.Context, p string) {
 
 	atomic.AddUint32(&c.listeners, ^uint32(0))
 
+	if c.cancel != nil {
+		c.cancel()
+	}
+
 	// stop consume
 	c.pauseCh <- struct{}{}
+	// if blocked, let 1 item to pass to unblock the listener and close the pipe
+	c.cond.Signal()
+
 	c.log.Debug("pipeline was paused", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
 }
 
@@ -370,8 +397,10 @@ func (c *Consumer) Resume(_ context.Context, p string) {
 		return
 	}
 
+	var ctx context.Context
+	ctx, c.cancel = context.WithCancel(context.Background())
 	// start listener
-	c.listen(context.Background())
+	c.listen(ctx)
 
 	// increase num of listeners
 	atomic.AddUint32(&c.listeners, 1)
@@ -528,4 +557,8 @@ func getQueueURL(client *sqs.Client, queueName *string) (*string, error) {
 	}
 
 	return out.QueueUrl, nil
+}
+
+func ptr[T any](val T) *T {
+	return &val
 }

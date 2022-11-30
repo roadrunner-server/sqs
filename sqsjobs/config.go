@@ -27,6 +27,8 @@ type Config struct {
 	SessionToken string `mapstructure:"session_token"`
 	Endpoint     string `mapstructure:"endpoint"`
 
+	// pipeline
+
 	// Consume all jobs
 	ConsumeAll bool `mapstructure:"consume_all"`
 

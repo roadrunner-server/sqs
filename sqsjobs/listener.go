@@ -2,6 +2,7 @@ package sqsjobs
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws/transport/http"
@@ -32,7 +33,7 @@ func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
 			default:
 				message, err := c.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 					QueueUrl:              c.queueURL,
-					MaxNumberOfMessages:   c.prefetch,
+					MaxNumberOfMessages:   10,
 					AttributeNames:        []types.QueueAttributeName{types.QueueAttributeName(ApproximateReceiveCount)},
 					MessageAttributeNames: []string{All},
 					// The new value for the message's visibility timeout (in seconds). Values range: 0
@@ -70,6 +71,13 @@ func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
 				}
 
 				for i := 0; i < len(message.Messages); i++ {
+					c.cond.L.Lock()
+					// lock when we hit the limit
+					for atomic.LoadInt64(c.msgInFlight) >= int64(atomic.LoadInt32(c.msgInFlightLimit)) {
+						c.log.Debug("prefetch limit was reached, waiting for the jobs to be processed", zap.Int64("current", atomic.LoadInt64(c.msgInFlight)), zap.Int32("limit", atomic.LoadInt32(c.msgInFlightLimit)))
+						c.cond.Wait()
+					}
+
 					m := message.Messages[i]
 					c.log.Debug("receive message", zap.Stringp("ID", m.MessageId))
 					item, errUnp := c.fromMsg(&m)
@@ -80,10 +88,12 @@ func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
 						})
 						if errD != nil {
 							c.log.Error("message unpack, failed to delete the message from the queue", zap.Error(errUnp), zap.Error(errD))
+							c.cond.L.Unlock()
 							continue
 						}
 
 						c.log.Error("message unpack", zap.Error(errUnp))
+						c.cond.L.Unlock()
 						continue
 					}
 
@@ -96,6 +106,7 @@ func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
 						if errD != nil {
 							cancel()
 							c.log.Error("message unpack, failed to delete the message from the queue", zap.Error(errUnp), zap.Error(errD))
+							c.cond.L.Unlock()
 							continue
 						}
 						cancel()
@@ -104,6 +115,10 @@ func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
 					}
 
 					c.pq.Insert(item)
+					// increase the current number of messages
+					atomic.AddInt64(c.msgInFlight, 1)
+					c.log.Debug("message pushed to the priority queue", zap.Int64("current", atomic.LoadInt64(c.msgInFlight)), zap.Int32("limit", atomic.LoadInt32(c.msgInFlightLimit)))
+					c.cond.L.Unlock()
 				}
 			}
 		}
