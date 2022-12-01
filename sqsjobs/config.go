@@ -121,7 +121,7 @@ func (c *Config) InitDefault() {
 		c.Queue = aws.String("default")
 	}
 
-	if c.Prefetch == 0 || c.Prefetch > 10 {
+	if c.Prefetch == 0 {
 		c.Prefetch = 10
 	}
 
