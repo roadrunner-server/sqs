@@ -2,7 +2,6 @@ package sqsjobs
 
 import (
 	"context"
-	"net/http"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -16,24 +15,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
+	"github.com/roadrunner-server/api/v3/plugins/v1/jobs"
+	pq "github.com/roadrunner-server/api/v3/plugins/v1/priority_queue"
 	"github.com/roadrunner-server/errors"
-	"github.com/roadrunner-server/sdk/v3/plugins/jobs"
-	"github.com/roadrunner-server/sdk/v3/plugins/jobs/pipeline"
-	priorityqueue "github.com/roadrunner-server/sdk/v3/priority_queue"
 	"go.uber.org/zap"
 )
 
-const (
-	pluginName           string = "sqs"
-	awsMetaDataURL       string = "http://169.254.169.254/latest/dynamic/instance-identity/"
-	awsMetaDataIMDSv2URL string = "http://169.254.169.254/latest/api/token"
-	awsTokenHeader       string = "X-aws-ec2-metadata-token-ttl-seconds" //nolint:gosec
-)
+const pluginName string = "sqs"
 
 type Configurer interface {
 	// UnmarshalKey takes a single key and unmarshal it into a Struct.
 	UnmarshalKey(name string, out any) error
-
 	// Has checks if config section exists.
 	Has(name string) bool
 }
@@ -44,9 +36,9 @@ type Consumer struct {
 	msgInFlight      *int64
 	msgInFlightLimit *int32
 
-	pq          priorityqueue.Queue
+	pq          pq.Queue
 	log         *zap.Logger
-	pipeline    atomic.Value
+	pipeline    atomic.Pointer[jobs.Pipeline]
 	consumeAll  bool
 	skipDeclare bool
 
@@ -72,18 +64,8 @@ type Consumer struct {
 	pauseCh chan struct{}
 }
 
-func NewSQSConsumer(configKey string, log *zap.Logger, cfg Configurer, pq priorityqueue.Queue) (*Consumer, error) {
+func NewSQSConsumer(configKey string, insideAWS bool, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Consumer, error) {
 	const op = errors.Op("new_sqs_consumer")
-
-	/*
-		we need to determine in what environment we are running
-		1. Non-AWS - global sqs config should be set
-		2. AWS - configuration should be obtained from the env
-	*/
-	insideAWS := false
-	if isInAWS() || isinAWSIMDSv2() {
-		insideAWS = true
-	}
 
 	// if no such key - error
 	if !cfg.Has(configKey) {
@@ -154,18 +136,8 @@ func NewSQSConsumer(configKey string, log *zap.Logger, cfg Configurer, pq priori
 	return jb, nil
 }
 
-func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg Configurer, pq priorityqueue.Queue) (*Consumer, error) {
+func FromPipeline(pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Consumer, error) {
 	const op = errors.Op("new_sqs_consumer")
-
-	/*
-		we need to determine in what environment we are running
-		1. Non-AWS - global sqs config should be set
-		2. AWS - configuration should be obtained from the env
-	*/
-	insideAWS := false
-	if isInAWS() || isinAWSIMDSv2() {
-		insideAWS = true
-	}
 
 	// if no global section
 	if !cfg.Has(pluginName) && !insideAWS {
@@ -238,20 +210,20 @@ func FromPipeline(pipe *pipeline.Pipeline, log *zap.Logger, cfg Configurer, pq p
 	return jb, nil
 }
 
-func (c *Consumer) Push(ctx context.Context, jb *jobs.Job) error {
+func (c *Consumer) Push(ctx context.Context, jb jobs.Job) error {
 	const op = errors.Op("sqs_push")
 	// check if the pipeline registered
 
 	// load atomic value
-	pipe := c.pipeline.Load().(*pipeline.Pipeline)
-	if pipe.Name() != jb.Options.Pipeline {
-		return errors.E(op, errors.Errorf("no such pipeline: %s, actual: %s", jb.Options.Pipeline, pipe.Name()))
+	pipe := *c.pipeline.Load()
+	if pipe.Name() != jb.Pipeline() {
+		return errors.E(op, errors.Errorf("no such pipeline: %s, actual: %s", jb.Pipeline(), pipe.Name()))
 	}
 
 	// The length of time, in seconds, for which to delay a specific message. Valid
 	// values: 0 to 900. Maximum: 15 minutes.
-	if jb.Options.Delay > 900 {
-		return errors.E(op, errors.Errorf("unable to push, maximum possible delay is 900 seconds (15 minutes), provided: %d", jb.Options.Delay))
+	if jb.Delay() > 900 {
+		return errors.E(op, errors.Errorf("unable to push, maximum possible delay is 900 seconds (15 minutes), provided: %d", jb.Delay()))
 	}
 
 	err := c.handleItem(ctx, fromJob(jb))
@@ -277,7 +249,7 @@ func (c *Consumer) State(ctx context.Context) (*jobs.State, error) {
 		return nil, errors.E(op, err)
 	}
 
-	pipe := c.pipeline.Load().(*pipeline.Pipeline)
+	pipe := *c.pipeline.Load()
 
 	out := &jobs.State{
 		Priority: uint64(pipe.Priority()),
@@ -305,19 +277,19 @@ func (c *Consumer) State(ctx context.Context) (*jobs.State, error) {
 	return out, nil
 }
 
-func (c *Consumer) Register(_ context.Context, p *pipeline.Pipeline) error {
-	c.pipeline.Store(p)
+func (c *Consumer) Register(_ context.Context, p jobs.Pipeline) error {
+	c.pipeline.Store(&p)
 	return nil
 }
 
-func (c *Consumer) Run(_ context.Context, p *pipeline.Pipeline) error {
+func (c *Consumer) Run(_ context.Context, p jobs.Pipeline) error {
 	start := time.Now()
 	const op = errors.Op("sqs_run")
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	pipe := c.pipeline.Load().(*pipeline.Pipeline)
+	pipe := *c.pipeline.Load()
 	if pipe.Name() != p.Name() {
 		return errors.E(op, errors.Errorf("no such pipeline registered: %s", pipe.Name()))
 	}
@@ -346,7 +318,7 @@ func (c *Consumer) Stop(context.Context) error {
 		c.pauseCh <- struct{}{}
 	}
 
-	pipe := c.pipeline.Load().(*pipeline.Pipeline)
+	pipe := *c.pipeline.Load()
 	c.log.Debug("pipeline was stopped", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
 	return nil
 }
@@ -354,7 +326,7 @@ func (c *Consumer) Stop(context.Context) error {
 func (c *Consumer) Pause(_ context.Context, p string) {
 	start := time.Now()
 	// load atomic value
-	pipe := c.pipeline.Load().(*pipeline.Pipeline)
+	pipe := *c.pipeline.Load()
 	if pipe.Name() != p {
 		c.log.Error("no such pipeline", zap.String("requested", p), zap.String("actual", pipe.Name()))
 		return
@@ -384,7 +356,7 @@ func (c *Consumer) Pause(_ context.Context, p string) {
 func (c *Consumer) Resume(_ context.Context, p string) {
 	start := time.Now()
 	// load atomic value
-	pipe := c.pipeline.Load().(*pipeline.Pipeline)
+	pipe := *c.pipeline.Load()
 	if pipe.Name() != p {
 		c.log.Error("no such pipeline", zap.String("requested", p), zap.String("actual", pipe.Name()))
 		return
@@ -457,51 +429,6 @@ func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string
 	return client, nil
 }
 
-func ready(r uint32) bool {
-	return r > 0
-}
-
-// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
-// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/identify_ec2_instances.html
-func isInAWS() bool {
-	client := &http.Client{
-		Timeout: time.Second * 2,
-	}
-	resp, err := client.Get(awsMetaDataURL) //nolint:noctx
-	if err != nil {
-		return false
-	}
-
-	_ = resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
-}
-
-// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
-func isinAWSIMDSv2() bool {
-	client := &http.Client{
-		Timeout: time.Second * 2,
-	}
-
-	// probably we're in the IMDSv2, let's try different endpoint
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, awsMetaDataIMDSv2URL, nil)
-	if err != nil {
-		return false
-	}
-
-	// 10 seconds should be fine to just check
-	req.Header.Set(awsTokenHeader, "10")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-
-	_ = resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
-}
-
 func manageQueue(jb *Consumer) error {
 	var err error
 	switch jb.skipDeclare {
@@ -561,4 +488,8 @@ func getQueueURL(client *sqs.Client, queueName *string) (*string, error) {
 
 func ptr[T any](val T) *T {
 	return &val
+}
+
+func ready(r uint32) bool {
+	return r > 0
 }
