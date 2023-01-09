@@ -8,7 +8,7 @@ import (
 
 	"github.com/roadrunner-server/api/v3/plugins/v1/jobs"
 	pq "github.com/roadrunner-server/api/v3/plugins/v1/priority_queue"
-	"github.com/roadrunner-server/sqs/v3/sqsjobs"
+	"github.com/roadrunner-server/sqs/v4/sqsjobs"
 	"go.uber.org/zap"
 )
 
