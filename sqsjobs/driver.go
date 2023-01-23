@@ -203,6 +203,7 @@ func FromPipeline(pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Confi
 		return nil, errors.E(op, err)
 	}
 
+	jb.pipeline.Store(&pipe)
 	// To successfully create a new queue, you must provide a
 	// queue name that adheres to the limits related to queues
 	// (https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/limits-queues.html)
