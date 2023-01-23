@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
-	"github.com/roadrunner-server/api/v3/plugins/v1/jobs"
+	"github.com/roadrunner-server/api/v4/plugins/v1/jobs"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sdk/v4/utils"
 	"go.uber.org/zap"
@@ -242,7 +242,7 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 	}, nil
 }
 
-func (c *Consumer) fromMsg(msg *types.Message) (*Item, error) {
+func (c *Driver) fromMsg(msg *types.Message) (*Item, error) {
 	item, err := c.unpack(msg)
 	if err == nil {
 		return item, nil
@@ -314,7 +314,7 @@ func (c *Consumer) fromMsg(msg *types.Message) (*Item, error) {
 	}
 }
 
-func (c *Consumer) unpack(msg *types.Message) (*Item, error) {
+func (c *Driver) unpack(msg *types.Message) (*Item, error) {
 	const op = errors.Op("sqs_unpack")
 	// reserved
 	if _, ok := msg.Attributes[ApproximateReceiveCount]; !ok {

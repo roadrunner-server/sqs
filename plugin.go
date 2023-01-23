@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/roadrunner-server/api/v3/plugins/v1/jobs"
-	pq "github.com/roadrunner-server/api/v3/plugins/v1/priority_queue"
+	"github.com/roadrunner-server/api/v4/plugins/v1/jobs"
+	pq "github.com/roadrunner-server/api/v4/plugins/v1/priority_queue"
 	"github.com/roadrunner-server/sqs/v4/sqsjobs"
 	"go.uber.org/zap"
 )
@@ -59,13 +59,13 @@ func (p *Plugin) Name() string {
 	return pluginName
 }
 
-func (p *Plugin) ConsumerFromConfig(configKey string, pq pq.Queue) (jobs.Consumer, error) {
+func (p *Plugin) DriverFromConfig(configKey string, pq pq.Queue, pipeline jobs.Pipeline, _ chan<- jobs.Commander) (jobs.Driver, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return sqsjobs.NewSQSConsumer(configKey, p.insideAWS, p.log, p.cfg, pq)
+	return sqsjobs.FromConfig(configKey, p.insideAWS, pipeline, p.log, p.cfg, pq)
 }
 
-func (p *Plugin) ConsumerFromPipeline(pipe jobs.Pipeline, pq pq.Queue) (jobs.Consumer, error) {
+func (p *Plugin) DriverFromPipeline(pipe jobs.Pipeline, pq pq.Queue, _ chan<- jobs.Commander) (jobs.Driver, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return sqsjobs.FromPipeline(pipe, p.insideAWS, p.log, p.cfg, pq)
