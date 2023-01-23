@@ -23,7 +23,7 @@ const (
 	auto string = "deduced_by_rr"
 )
 
-func (c *Consumer) listen(ctx context.Context) { //nolint:gocognit
+func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 	go func() {
 		for {
 			select {

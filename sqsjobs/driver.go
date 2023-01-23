@@ -15,13 +15,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
-	"github.com/roadrunner-server/api/v3/plugins/v1/jobs"
-	pq "github.com/roadrunner-server/api/v3/plugins/v1/priority_queue"
+	"github.com/roadrunner-server/api/v4/plugins/v1/jobs"
+	pq "github.com/roadrunner-server/api/v4/plugins/v1/priority_queue"
 	"github.com/roadrunner-server/errors"
 	"go.uber.org/zap"
 )
 
 const pluginName string = "sqs"
+
+var _ jobs.Driver = (*Driver)(nil)
 
 type Configurer interface {
 	// UnmarshalKey takes a single key and unmarshal it into a Struct.
@@ -30,7 +32,7 @@ type Configurer interface {
 	Has(name string) bool
 }
 
-type Consumer struct {
+type Driver struct {
 	mu               sync.Mutex
 	cond             sync.Cond
 	msgInFlight      *int64
@@ -64,7 +66,7 @@ type Consumer struct {
 	pauseCh chan struct{}
 }
 
-func NewSQSConsumer(configKey string, insideAWS bool, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Consumer, error) {
+func FromConfig(configKey string, insideAWS bool, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	// if no such key - error
@@ -94,8 +96,8 @@ func NewSQSConsumer(configKey string, insideAWS bool, log *zap.Logger, cfg Confi
 
 	conf.InitDefault()
 
-	// initialize job Consumer
-	jb := &Consumer{
+	// initialize job Driver
+	jb := &Driver{
 		cond:              sync.Cond{L: &sync.Mutex{}},
 		pq:                pq,
 		log:               log,
@@ -125,6 +127,8 @@ func NewSQSConsumer(configKey string, insideAWS bool, log *zap.Logger, cfg Confi
 		return nil, errors.E(op, err)
 	}
 
+	jb.pipeline.Store(&pipe)
+
 	// To successfully create a new queue, you must provide a
 	// queue name that adheres to the limits related to queues
 	// (https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/limits-queues.html)
@@ -136,7 +140,7 @@ func NewSQSConsumer(configKey string, insideAWS bool, log *zap.Logger, cfg Confi
 	return jb, nil
 }
 
-func FromPipeline(pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Consumer, error) {
+func FromPipeline(pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	// if no global section
@@ -167,8 +171,8 @@ func FromPipeline(pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Confi
 		return nil, errors.E(op, err)
 	}
 
-	// initialize job Consumer
-	jb := &Consumer{
+	// initialize job Driver
+	jb := &Driver{
 		cond:              sync.Cond{L: &sync.Mutex{}},
 		pq:                pq,
 		log:               log,
@@ -210,7 +214,7 @@ func FromPipeline(pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Confi
 	return jb, nil
 }
 
-func (c *Consumer) Push(ctx context.Context, jb jobs.Job) error {
+func (c *Driver) Push(ctx context.Context, jb jobs.Job) error {
 	const op = errors.Op("sqs_push")
 	// check if the pipeline registered
 
@@ -234,7 +238,7 @@ func (c *Consumer) Push(ctx context.Context, jb jobs.Job) error {
 	return nil
 }
 
-func (c *Consumer) State(ctx context.Context) (*jobs.State, error) {
+func (c *Driver) State(ctx context.Context) (*jobs.State, error) {
 	const op = errors.Op("sqs_state")
 	attr, err := c.client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
 		QueueUrl: c.queueURL,
@@ -277,12 +281,7 @@ func (c *Consumer) State(ctx context.Context) (*jobs.State, error) {
 	return out, nil
 }
 
-func (c *Consumer) Register(_ context.Context, p jobs.Pipeline) error {
-	c.pipeline.Store(&p)
-	return nil
-}
-
-func (c *Consumer) Run(_ context.Context, p jobs.Pipeline) error {
+func (c *Driver) Run(_ context.Context, p jobs.Pipeline) error {
 	start := time.Now()
 	const op = errors.Op("sqs_run")
 
@@ -305,7 +304,7 @@ func (c *Consumer) Run(_ context.Context, p jobs.Pipeline) error {
 	return nil
 }
 
-func (c *Consumer) Stop(context.Context) error {
+func (c *Driver) Stop(context.Context) error {
 	start := time.Now()
 
 	if atomic.LoadUint32(&c.listeners) > 0 {
@@ -323,20 +322,18 @@ func (c *Consumer) Stop(context.Context) error {
 	return nil
 }
 
-func (c *Consumer) Pause(_ context.Context, p string) {
+func (c *Driver) Pause(_ context.Context, p string) error {
 	start := time.Now()
 	// load atomic value
 	pipe := *c.pipeline.Load()
 	if pipe.Name() != p {
-		c.log.Error("no such pipeline", zap.String("requested", p), zap.String("actual", pipe.Name()))
-		return
+		return errors.Errorf("no such pipeline: %s", pipe.Name())
 	}
 
 	l := atomic.LoadUint32(&c.listeners)
 	// no active listeners
 	if l == 0 {
-		c.log.Warn("no active listeners, nothing to pause")
-		return
+		return errors.Str("no active listeners, nothing to pause")
 	}
 
 	atomic.AddUint32(&c.listeners, ^uint32(0))
@@ -351,22 +348,22 @@ func (c *Consumer) Pause(_ context.Context, p string) {
 	c.cond.Signal()
 
 	c.log.Debug("pipeline was paused", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
+
+	return nil
 }
 
-func (c *Consumer) Resume(_ context.Context, p string) {
+func (c *Driver) Resume(_ context.Context, p string) error {
 	start := time.Now()
 	// load atomic value
 	pipe := *c.pipeline.Load()
 	if pipe.Name() != p {
-		c.log.Error("no such pipeline", zap.String("requested", p), zap.String("actual", pipe.Name()))
-		return
+		return errors.Errorf("no such pipeline: %s", pipe.Name())
 	}
 
 	l := atomic.LoadUint32(&c.listeners)
 	// no active listeners
 	if l == 1 {
-		c.log.Warn("sqs listener already in the active state")
-		return
+		return errors.Str("sqs listener is already in the active state")
 	}
 
 	var ctx context.Context
@@ -377,9 +374,11 @@ func (c *Consumer) Resume(_ context.Context, p string) {
 	// increase num of listeners
 	atomic.AddUint32(&c.listeners, 1)
 	c.log.Debug("pipeline was resumed", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
+
+	return nil
 }
 
-func (c *Consumer) handleItem(ctx context.Context, msg *Item) error {
+func (c *Driver) handleItem(ctx context.Context, msg *Item) error {
 	d, err := msg.pack(c.queueURL, c.queue, c.messageGroupID)
 	if err != nil {
 		return err
@@ -429,7 +428,7 @@ func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string
 	return client, nil
 }
 
-func manageQueue(jb *Consumer) error {
+func manageQueue(jb *Driver) error {
 	var err error
 	switch jb.skipDeclare {
 	case true:
