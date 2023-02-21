@@ -1,5 +1,6 @@
-github.com/aws/aws-sdk-go-v2 v1.17.4 h1:wyC6p9Yfq6V2y98wfDsj6OnNQa4w2BLGCLIxzNhwOGY=
 github.com/aws/aws-sdk-go-v2 v1.17.4/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
+github.com/aws/aws-sdk-go-v2 v1.17.5 h1:TzCUW1Nq4H8Xscph5M/skINUitxM5UBAyvm2s7XBzL4=
+github.com/aws/aws-sdk-go-v2 v1.17.5/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
 github.com/aws/aws-sdk-go-v2/config v1.18.13 h1:v0xlYqbO6/EVlM8tUn2QEOA7btQxcgidEq2JRDBPTho=
 github.com/aws/aws-sdk-go-v2/config v1.18.13/go.mod h1:r39wGSZB7wPDW1i54JyQXUpc5KsWjh5z/3S5D9eCqDg=
 github.com/aws/aws-sdk-go-v2/credentials v1.13.13 h1:zw1KAc1kl00NYd3ofVmFrb09qnYlSQMeh+fmlQRAihI=
@@ -45,8 +46,6 @@ github.com/roadrunner-server/errors v1.2.0 h1:qBmNXt8Iex9QnYTjCkbJKsBZu2EtYkQCM0
 github.com/roadrunner-server/errors v1.2.0/go.mod h1:z0ECxZp/dDa5RahtMcy4mBIavVxiZ9vwE5kByl7kFtY=
 github.com/roadrunner-server/sdk/v4 v4.2.0 h1:hqNlqJV2MXZ8DF1wJnouUdV/55Hae6VL37fVXT1aIr8=
 github.com/roadrunner-server/sdk/v4 v4.2.0/go.mod h1:aIzXmg8DZBJ4Tbtvihp/s6VH4e2oSdivOqm/8V+HuUc=
-github.com/roadrunner-server/tcplisten v1.2.1 h1:9hVVMlCRvMPewnJCnfSe/kKAqn2ZOF3wHy+ji0M/NKU=
-github.com/roadrunner-server/tcplisten v1.2.1/go.mod h1:TRJLGwIruiJ7QhmGVRgJFY5Ch72mPoLhLAxuxLnavpU=
 github.com/roadrunner-server/tcplisten v1.3.0 h1:VDd6IbP8oIjm5vKvMVozeZgeHgOcoP0XYLOyOqcZHCY=
 github.com/roadrunner-server/tcplisten v1.3.0/go.mod h1:VR6Ob5am0oEuLMOeLiVvQxG9ShykAEgrlvZddX8EfoU=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
