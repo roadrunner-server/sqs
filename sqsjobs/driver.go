@@ -17,6 +17,7 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/roadrunner-server/api/v4/plugins/v1/jobs"
 	pq "github.com/roadrunner-server/api/v4/plugins/v1/priority_queue"
+	"github.com/roadrunner-server/api/v4/plugins/v1/status"
 	"github.com/roadrunner-server/errors"
 	"go.uber.org/zap"
 )
@@ -237,6 +238,23 @@ func (c *Driver) Push(ctx context.Context, jb jobs.Job) error {
 	}
 
 	return nil
+}
+
+func (d *Driver) Status() (*status.Status, error) {
+	if *d.queue == "" {
+		return nil, errors.Str("empty queue name, consider adding the queue name to the SQS configuration")
+	}
+
+	_, err := d.client.GetQueueUrl(context.Background(), &sqs.GetQueueUrlInput{
+		QueueName: d.queue,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &status.Status{
+		Code: 200,
+	}, nil
 }
 
 func (c *Driver) State(ctx context.Context) (*jobs.State, error) {
