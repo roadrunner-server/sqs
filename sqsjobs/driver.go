@@ -241,7 +241,7 @@ func (c *Driver) Push(ctx context.Context, jb jobs.Job) error {
 }
 
 func (d *Driver) Status() (*status.Status, error) {
-if d.queue != nil && *d.queue == "" {...}
+	if d.queue != nil && *d.queue == "" {...}
 		return nil, errors.Str("empty queue name, consider adding the queue name to the SQS configuration")
 	}
 
