@@ -240,13 +240,13 @@ func (c *Driver) Push(ctx context.Context, jb jobs.Job) error {
 	return nil
 }
 
-func (d *Driver) Status() (*status.Status, error) {
-	if d.queue != nil && *d.queue == "" {...}
+func (c *Driver) Status() (*status.Status, error) {
+	if c.queue != nil && *c.queue == "" {
 		return nil, errors.Str("empty queue name, consider adding the queue name to the SQS configuration")
 	}
 
-	_, err := d.client.GetQueueUrl(context.Background(), &sqs.GetQueueUrlInput{
-		QueueName: d.queue,
+	_, err := c.client.GetQueueUrl(context.Background(), &sqs.GetQueueUrlInput{
+		QueueName: c.queue,
 	})
 	if err != nil {
 		return nil, err
