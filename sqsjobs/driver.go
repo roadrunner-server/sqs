@@ -18,10 +18,18 @@ import (
 	"github.com/roadrunner-server/api/v4/plugins/v1/jobs"
 	pq "github.com/roadrunner-server/api/v4/plugins/v1/priority_queue"
 	"github.com/roadrunner-server/errors"
+	jprop "go.opentelemetry.io/contrib/propagators/jaeger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
-const pluginName string = "sqs"
+const (
+	pluginName string = "sqs"
+	tracerName string = "jobs"
+)
 
 var _ jobs.Driver = (*Driver)(nil)
 
@@ -43,6 +51,9 @@ type Driver struct {
 	pipeline    atomic.Pointer[jobs.Pipeline]
 	consumeAll  bool
 	skipDeclare bool
+
+	tracer *sdktrace.TracerProvider
+	prop   propagation.TextMapPropagator
 
 	// func to cancel listener
 	cancel context.CancelFunc
@@ -66,7 +77,7 @@ type Driver struct {
 	pauseCh chan struct{}
 }
 
-func FromConfig(configKey string, insideAWS bool, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
+func FromConfig(tracer *sdktrace.TracerProvider, configKey string, insideAWS bool, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	// if no such key - error
@@ -78,6 +89,13 @@ func FromConfig(configKey string, insideAWS bool, pipe jobs.Pipeline, log *zap.L
 	if !cfg.Has(pluginName) && !insideAWS {
 		return nil, errors.E(op, errors.Str("no global sqs configuration, global configuration should contain sqs section"))
 	}
+
+	if tracer == nil {
+		tracer = sdktrace.NewTracerProvider()
+	}
+
+	prop := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}, jprop.Jaeger{})
+	otel.SetTextMapPropagator(prop)
 
 	// PARSE CONFIGURATION -------
 	var conf Config
@@ -98,6 +116,8 @@ func FromConfig(configKey string, insideAWS bool, pipe jobs.Pipeline, log *zap.L
 
 	// initialize job Driver
 	jb := &Driver{
+		tracer:            tracer,
+		prop:              prop,
 		cond:              sync.Cond{L: &sync.Mutex{}},
 		pq:                pq,
 		log:               log,
@@ -140,13 +160,20 @@ func FromConfig(configKey string, insideAWS bool, pipe jobs.Pipeline, log *zap.L
 	return jb, nil
 }
 
-func FromPipeline(pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
+func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	// if no global section
 	if !cfg.Has(pluginName) && !insideAWS {
 		return nil, errors.E(op, errors.Str("no global sqs configuration, global configuration should contain sqs section"))
 	}
+
+	if tracer == nil {
+		tracer = sdktrace.NewTracerProvider()
+	}
+
+	prop := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}, jprop.Jaeger{})
+	otel.SetTextMapPropagator(prop)
 
 	// PARSE CONFIGURATION -------
 	conf := &Config{}
@@ -173,6 +200,8 @@ func FromPipeline(pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Confi
 
 	// initialize job Driver
 	jb := &Driver{
+		tracer:            tracer,
+		prop:              prop,
 		cond:              sync.Cond{L: &sync.Mutex{}},
 		pq:                pq,
 		log:               log,
@@ -219,6 +248,9 @@ func (c *Driver) Push(ctx context.Context, jb jobs.Job) error {
 	const op = errors.Op("sqs_push")
 	// check if the pipeline registered
 
+	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_push")
+	defer span.End()
+
 	// load atomic value
 	pipe := *c.pipeline.Load()
 	if pipe.Name() != jb.Pipeline() {
@@ -239,8 +271,126 @@ func (c *Driver) Push(ctx context.Context, jb jobs.Job) error {
 	return nil
 }
 
+func (c *Driver) Run(ctx context.Context, p jobs.Pipeline) error {
+	start := time.Now().UTC()
+	const op = errors.Op("sqs_run")
+
+	_, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_run")
+	defer span.End()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	pipe := *c.pipeline.Load()
+	if pipe.Name() != p.Name() {
+		return errors.E(op, errors.Errorf("no such pipeline registered: %s", pipe.Name()))
+	}
+
+	atomic.AddUint32(&c.listeners, 1)
+
+	// start listener
+	var ctxCancel context.Context
+	ctxCancel, c.cancel = context.WithCancel(context.Background())
+	c.listen(ctxCancel)
+
+	c.log.Debug("pipeline is active", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", start), zap.Duration("elapsed", time.Since(start)))
+	return nil
+}
+
+func (c *Driver) Stop(ctx context.Context) error {
+	start := time.Now().UTC()
+
+	_, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_stop")
+	defer span.End()
+
+	if atomic.LoadUint32(&c.listeners) > 0 {
+		if c.cancel != nil {
+			c.cancel()
+		}
+		// if blocked, let 1 item to pass to unblock the listener and close the pipe
+		c.cond.Signal()
+
+		c.pauseCh <- struct{}{}
+	}
+
+	pipe := *c.pipeline.Load()
+	c.log.Debug("pipeline was stopped", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now().UTC()), zap.Duration("elapsed", time.Since(start)))
+	return nil
+}
+
+func (c *Driver) Pause(ctx context.Context, p string) error {
+	start := time.Now().UTC()
+
+	_, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_pause")
+	defer span.End()
+
+	// load atomic value
+	pipe := *c.pipeline.Load()
+	if pipe.Name() != p {
+		return errors.Errorf("no such pipeline: %s", pipe.Name())
+	}
+
+	l := atomic.LoadUint32(&c.listeners)
+	// no active listeners
+	if l == 0 {
+		return errors.Str("no active listeners, nothing to pause")
+	}
+
+	atomic.AddUint32(&c.listeners, ^uint32(0))
+
+	if c.cancel != nil {
+		c.cancel()
+	}
+
+	// stop consume
+	c.pauseCh <- struct{}{}
+	// if blocked, let 1 item to pass to unblock the listener and close the pipe
+	c.cond.Signal()
+
+	c.log.Debug("pipeline was paused", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now().UTC()), zap.Duration("elapsed", time.Since(start)))
+
+	return nil
+}
+
+func (c *Driver) Resume(ctx context.Context, p string) error {
+	start := time.Now().UTC()
+
+	_, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_resume")
+	defer span.End()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// load atomic value
+	pipe := *c.pipeline.Load()
+	if pipe.Name() != p {
+		return errors.Errorf("no such pipeline: %s", pipe.Name())
+	}
+
+	l := atomic.LoadUint32(&c.listeners)
+	// no active listeners
+	if l == 1 {
+		return errors.Str("sqs listener is already in the active state")
+	}
+
+	// start listener
+	var ctxCancel context.Context
+	ctxCancel, c.cancel = context.WithCancel(context.Background())
+	c.listen(ctxCancel)
+
+	// increase num of listeners
+	atomic.AddUint32(&c.listeners, 1)
+	c.log.Debug("pipeline was resumed", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now().UTC()), zap.Duration("elapsed", time.Since(start)))
+
+	return nil
+}
+
 func (c *Driver) State(ctx context.Context) (*jobs.State, error) {
 	const op = errors.Op("sqs_state")
+
+	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_state")
+	defer span.End()
+
 	attr, err := c.client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
 		QueueUrl: c.queueURL,
 		AttributeNames: []types.QueueAttributeName{
@@ -282,108 +432,14 @@ func (c *Driver) State(ctx context.Context) (*jobs.State, error) {
 	return out, nil
 }
 
-func (c *Driver) Run(_ context.Context, p jobs.Pipeline) error {
-	start := time.Now()
-	const op = errors.Op("sqs_run")
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	pipe := *c.pipeline.Load()
-	if pipe.Name() != p.Name() {
-		return errors.E(op, errors.Errorf("no such pipeline registered: %s", pipe.Name()))
-	}
-
-	atomic.AddUint32(&c.listeners, 1)
-
-	// start listener
-	var ctx context.Context
-	ctx, c.cancel = context.WithCancel(context.Background())
-	c.listen(ctx)
-
-	c.log.Debug("pipeline is active", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", start), zap.Duration("elapsed", time.Since(start)))
-	return nil
-}
-
-func (c *Driver) Stop(context.Context) error {
-	start := time.Now()
-
-	if atomic.LoadUint32(&c.listeners) > 0 {
-		if c.cancel != nil {
-			c.cancel()
-		}
-		// if blocked, let 1 item to pass to unblock the listener and close the pipe
-		c.cond.Signal()
-
-		c.pauseCh <- struct{}{}
-	}
-
-	pipe := *c.pipeline.Load()
-	c.log.Debug("pipeline was stopped", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
-	return nil
-}
-
-func (c *Driver) Pause(_ context.Context, p string) error {
-	start := time.Now()
-	// load atomic value
-	pipe := *c.pipeline.Load()
-	if pipe.Name() != p {
-		return errors.Errorf("no such pipeline: %s", pipe.Name())
-	}
-
-	l := atomic.LoadUint32(&c.listeners)
-	// no active listeners
-	if l == 0 {
-		return errors.Str("no active listeners, nothing to pause")
-	}
-
-	atomic.AddUint32(&c.listeners, ^uint32(0))
-
-	if c.cancel != nil {
-		c.cancel()
-	}
-
-	// stop consume
-	c.pauseCh <- struct{}{}
-	// if blocked, let 1 item to pass to unblock the listener and close the pipe
-	c.cond.Signal()
-
-	c.log.Debug("pipeline was paused", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
-
-	return nil
-}
-
-func (c *Driver) Resume(_ context.Context, p string) error {
-	start := time.Now()
-	// load atomic value
-	pipe := *c.pipeline.Load()
-	if pipe.Name() != p {
-		return errors.Errorf("no such pipeline: %s", pipe.Name())
-	}
-
-	l := atomic.LoadUint32(&c.listeners)
-	// no active listeners
-	if l == 1 {
-		return errors.Str("sqs listener is already in the active state")
-	}
-
-	var ctx context.Context
-	ctx, c.cancel = context.WithCancel(context.Background())
-	// start listener
-	c.listen(ctx)
-
-	// increase num of listeners
-	atomic.AddUint32(&c.listeners, 1)
-	c.log.Debug("pipeline was resumed", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now()), zap.Duration("elapsed", time.Since(start)))
-
-	return nil
-}
-
 func (c *Driver) handleItem(ctx context.Context, msg *Item) error {
+	c.prop.Inject(ctx, propagation.HeaderCarrier(msg.Headers))
+
 	d, err := msg.pack(c.queueURL, c.queue, c.messageGroupID)
 	if err != nil {
 		return err
 	}
+
 	_, err = c.client.SendMessage(ctx, d)
 	if err != nil {
 		return err

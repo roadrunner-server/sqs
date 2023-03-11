@@ -8,7 +8,9 @@ import (
 
 	"github.com/roadrunner-server/api/v4/plugins/v1/jobs"
 	pq "github.com/roadrunner-server/api/v4/plugins/v1/priority_queue"
+	"github.com/roadrunner-server/endure/v2/dep"
 	"github.com/roadrunner-server/sqs/v4/sqsjobs"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
 
@@ -22,6 +24,7 @@ const (
 type Plugin struct {
 	insideAWS bool
 	mu        sync.RWMutex
+	tracer    *sdktrace.TracerProvider
 
 	log *zap.Logger
 	cfg Configurer
@@ -32,6 +35,10 @@ type Configurer interface {
 	UnmarshalKey(name string, out any) error
 	// Has checks if config section exists.
 	Has(name string) bool
+}
+
+type Tracer interface {
+	Tracer() *sdktrace.TracerProvider
 }
 
 type Logger interface {
@@ -59,16 +66,24 @@ func (p *Plugin) Name() string {
 	return pluginName
 }
 
+func (p *Plugin) Collects() []*dep.In {
+	return []*dep.In{
+		dep.Fits(func(pp any) {
+			p.tracer = pp.(Tracer).Tracer()
+		}, (*Tracer)(nil)),
+	}
+}
+
 func (p *Plugin) DriverFromConfig(configKey string, pq pq.Queue, pipeline jobs.Pipeline, _ chan<- jobs.Commander) (jobs.Driver, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return sqsjobs.FromConfig(configKey, p.insideAWS, pipeline, p.log, p.cfg, pq)
+	return sqsjobs.FromConfig(p.tracer, configKey, p.insideAWS, pipeline, p.log, p.cfg, pq)
 }
 
 func (p *Plugin) DriverFromPipeline(pipe jobs.Pipeline, pq pq.Queue, _ chan<- jobs.Commander) (jobs.Driver, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	return sqsjobs.FromPipeline(pipe, p.insideAWS, p.log, p.cfg, pq)
+	return sqsjobs.FromPipeline(p.tracer, pipe, p.insideAWS, p.log, p.cfg, pq)
 }
 
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
