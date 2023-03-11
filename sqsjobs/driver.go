@@ -275,7 +275,7 @@ func (c *Driver) Run(ctx context.Context, p jobs.Pipeline) error {
 	start := time.Now().UTC()
 	const op = errors.Op("sqs_run")
 
-	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_run")
+	_, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_run")
 	defer span.End()
 
 	c.mu.Lock()
@@ -289,8 +289,9 @@ func (c *Driver) Run(ctx context.Context, p jobs.Pipeline) error {
 	atomic.AddUint32(&c.listeners, 1)
 
 	// start listener
-	ctx, c.cancel = context.WithCancel(ctx)
-	c.listen(ctx)
+	var ctxCancel context.Context
+	ctxCancel, c.cancel = context.WithCancel(context.Background())
+	c.listen(ctxCancel)
 
 	c.log.Debug("pipeline is active", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", start), zap.Duration("elapsed", time.Since(start)))
 	return nil
@@ -354,8 +355,11 @@ func (c *Driver) Pause(ctx context.Context, p string) error {
 func (c *Driver) Resume(ctx context.Context, p string) error {
 	start := time.Now().UTC()
 
-	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_resume")
+	_, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_resume")
 	defer span.End()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	// load atomic value
 	pipe := *c.pipeline.Load()
@@ -369,9 +373,10 @@ func (c *Driver) Resume(ctx context.Context, p string) error {
 		return errors.Str("sqs listener is already in the active state")
 	}
 
-	ctx, c.cancel = context.WithCancel(ctx)
 	// start listener
-	c.listen(ctx)
+	var ctxCancel context.Context
+	ctxCancel, c.cancel = context.WithCancel(context.Background())
+	c.listen(ctxCancel)
 
 	// increase num of listeners
 	atomic.AddUint32(&c.listeners, 1)
