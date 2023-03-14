@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.16
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.5
 	github.com/aws/smithy-go v1.13.5
-	github.com/goccy/go-json v0.10.0
+	github.com/goccy/go-json v0.10.1
 	github.com/google/uuid v1.3.0
 	github.com/roadrunner-server/api/v4 v4.2.1
 	github.com/roadrunner-server/endure/v2 v2.2.0
