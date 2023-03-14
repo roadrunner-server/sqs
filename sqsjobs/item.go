@@ -63,6 +63,8 @@ type Options struct {
 	Delay int64 `json:"delay,omitempty"`
 	// AutoAck jobs after receive it from the queue
 	AutoAck bool `json:"auto_ack"`
+	// SQS Queue name
+	Queue string `json:"queue,omitempty"`
 
 	// Private ================
 	cond               *sync.Cond
@@ -105,12 +107,14 @@ func (i *Item) Context() ([]byte, error) {
 			Job      string              `json:"job"`
 			Driver   string              `json:"driver"`
 			Headers  map[string][]string `json:"headers"`
+			Queue    string              `json:"queue,omitempty"`
 			Pipeline string              `json:"pipeline"`
 		}{
 			ID:       i.Ident,
 			Job:      i.Job,
 			Driver:   pluginName,
 			Headers:  i.Headers,
+			Queue:    i.Options.Queue,
 			Pipeline: i.Options.Pipeline,
 		},
 	)
@@ -279,7 +283,8 @@ func (c *Driver) fromMsg(msg *types.Message) (*Item, error) {
 				Headers: convAttr(msg.Attributes),
 				Options: &Options{
 					Priority:           10,
-					Pipeline:           auto,
+					Pipeline:           (*c.pipeline.Load()).Name(),
+					Queue:              checkBody(c.queue),
 					AutoAck:            false,
 					approxReceiveCount: int64(approxRecCount),
 					queue:              c.queue,
@@ -299,7 +304,8 @@ func (c *Driver) fromMsg(msg *types.Message) (*Item, error) {
 				Headers: convAttr(msg.Attributes),
 				Options: &Options{
 					Priority:           10,
-					Pipeline:           auto,
+					Queue:              checkBody(c.queue),
+					Pipeline:           (*c.pipeline.Load()).Name(),
 					AutoAck:            false,
 					approxReceiveCount: int64(approxRecCount),
 					queue:              c.queue,
@@ -367,6 +373,8 @@ func (c *Driver) unpack(msg *types.Message) (*Item, error) {
 			AutoAck:  autoAck,
 			Delay:    int64(d),
 			Priority: int64(priority),
+			Pipeline: (*c.pipeline.Load()).Name(),
+			Queue:    checkBody(c.queue),
 
 			// private
 			approxReceiveCount: int64(recCount),
