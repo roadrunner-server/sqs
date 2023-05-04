@@ -2,6 +2,7 @@ package sqsjobs
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -27,8 +28,11 @@ import (
 )
 
 const (
-	pluginName string = "sqs"
-	tracerName string = "jobs"
+	pluginName           string = "sqs"
+	tracerName           string = "jobs"
+	awsMetaDataURL       string = "http://169.254.169.254/latest/dynamic/instance-identity/"
+	awsMetaDataIMDSv2URL string = "http://169.254.169.254/latest/api/token"
+	awsTokenHeader       string = "X-aws-ec2-metadata-token-ttl-seconds" //nolint:gosec
 )
 
 var _ jobs.Driver = (*Driver)(nil)
@@ -77,8 +81,17 @@ type Driver struct {
 	pauseCh chan struct{}
 }
 
-func FromConfig(tracer *sdktrace.TracerProvider, configKey string, insideAWS bool, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
+func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
+	/*
+		we need to determine in what environment we are running
+		1. Non-AWS - global sqs config should be set
+		2. AWS - configuration should be obtained from the env
+	*/
+	insideAWS := false
+	if isInAWS() || isinAWSIMDSv2() {
+		insideAWS = true
+	}
 
 	// if no such key - error
 	if !cfg.Has(configKey) {
@@ -160,8 +173,18 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, insideAWS boo
 	return jb, nil
 }
 
-func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, insideAWS bool, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
+func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
+
+	/*
+		we need to determine in what environment we are running
+		1. Non-AWS - global sqs config should be set
+		2. AWS - configuration should be obtained from the env
+	*/
+	insideAWS := false
+	if isInAWS() || isinAWSIMDSv2() {
+		insideAWS = true
+	}
 
 	// if no global section
 	if !cfg.Has(pluginName) && !insideAWS {
@@ -501,6 +524,47 @@ func manageQueue(jb *Driver) error {
 	}
 
 	return nil
+}
+
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/identify_ec2_instances.html
+func isInAWS() bool {
+	client := &http.Client{
+		Timeout: time.Second * 2,
+	}
+	resp, err := client.Get(awsMetaDataURL) //nolint:noctx
+	if err != nil {
+		return false
+	}
+
+	_ = resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
+}
+
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
+func isinAWSIMDSv2() bool {
+	client := &http.Client{
+		Timeout: time.Second * 2,
+	}
+
+	// probably we're in the IMDSv2, let's try different endpoint
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, awsMetaDataIMDSv2URL, nil)
+	if err != nil {
+		return false
+	}
+
+	// 10 seconds should be fine to just check
+	req.Header.Set(awsTokenHeader, "10")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+
+	_ = resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 func createQueue(client *sqs.Client, queueName *string, attributes map[string]string, tags map[string]string) (*string, error) {
