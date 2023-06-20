@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
@@ -16,8 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
-	"github.com/roadrunner-server/api/v4/plugins/v1/jobs"
-	pq "github.com/roadrunner-server/api/v4/plugins/v1/priority_queue"
+	"github.com/roadrunner-server/api/v4/plugins/v2/jobs"
 	"github.com/roadrunner-server/errors"
 	jprop "go.opentelemetry.io/contrib/propagators/jaeger"
 	"go.opentelemetry.io/otel"
@@ -50,7 +50,7 @@ type Driver struct {
 	msgInFlight      *int64
 	msgInFlightLimit *int32
 
-	pq          pq.Queue
+	pq          jobs.Queue
 	log         *zap.Logger
 	pipeline    atomic.Pointer[jobs.Pipeline]
 	consumeAll  bool
@@ -78,10 +78,11 @@ type Driver struct {
 	client   *sqs.Client
 	queueURL *string
 
+	stopped uint64
 	pauseCh chan struct{}
 }
 
-func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
+func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 	/*
 		we need to determine in what environment we are running
@@ -173,7 +174,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 	return jb, nil
 }
 
-func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq pq.Queue) (*Driver, error) {
+func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	/*
@@ -267,7 +268,7 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 	return jb, nil
 }
 
-func (c *Driver) Push(ctx context.Context, jb jobs.Job) error {
+func (c *Driver) Push(ctx context.Context, jb jobs.Message) error {
 	const op = errors.Op("sqs_push")
 	// check if the pipeline registered
 
@@ -276,8 +277,8 @@ func (c *Driver) Push(ctx context.Context, jb jobs.Job) error {
 
 	// load atomic value
 	pipe := *c.pipeline.Load()
-	if pipe.Name() != jb.Pipeline() {
-		return errors.E(op, errors.Errorf("no such pipeline: %s, actual: %s", jb.Pipeline(), pipe.Name()))
+	if pipe.Name() != jb.PipelineID() {
+		return errors.E(op, errors.Errorf("no such pipeline: %s, actual: %s", jb.PipelineID(), pipe.Name()))
 	}
 
 	// The length of time, in seconds, for which to delay a specific message. Valid
@@ -316,7 +317,7 @@ func (c *Driver) Run(ctx context.Context, p jobs.Pipeline) error {
 	ctxCancel, c.cancel = context.WithCancel(context.Background())
 	c.listen(ctxCancel)
 
-	c.log.Debug("pipeline is active", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", start), zap.Duration("elapsed", time.Since(start)))
+	c.log.Debug("pipeline was started", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", start), zap.Duration("elapsed", time.Since(start)))
 	return nil
 }
 
@@ -325,6 +326,10 @@ func (c *Driver) Stop(ctx context.Context) error {
 
 	_, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_stop")
 	defer span.End()
+
+	atomic.StoreUint64(&c.stopped, 1)
+	pipe := *c.pipeline.Load()
+	_ = c.pq.Remove(pipe.Name())
 
 	if atomic.LoadUint32(&c.listeners) > 0 {
 		if c.cancel != nil {
@@ -336,7 +341,6 @@ func (c *Driver) Stop(ctx context.Context) error {
 		c.pauseCh <- struct{}{}
 	}
 
-	pipe := *c.pipeline.Load()
 	c.log.Debug("pipeline was stopped", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now().UTC()), zap.Duration("elapsed", time.Since(start)))
 	return nil
 }
@@ -456,7 +460,7 @@ func (c *Driver) State(ctx context.Context) (*jobs.State, error) {
 }
 
 func (c *Driver) handleItem(ctx context.Context, msg *Item) error {
-	c.prop.Inject(ctx, propagation.HeaderCarrier(msg.Headers))
+	c.prop.Inject(ctx, propagation.HeaderCarrier(msg.headers))
 
 	d, err := msg.pack(c.queueURL, c.queue, c.messageGroupID)
 	if err != nil {
@@ -612,4 +616,20 @@ func ptr[T any](val T) *T {
 
 func ready(r uint32) bool {
 	return r > 0
+}
+
+func bytesToStr(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	return unsafe.String(unsafe.SliceData(data), len(data))
+}
+
+func strToBytes(data string) []byte {
+	if data == "" {
+		return nil
+	}
+
+	return unsafe.Slice(unsafe.StringData(data), len(data))
 }
