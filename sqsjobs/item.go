@@ -89,7 +89,7 @@ func (i *Item) Priority() int64 {
 	return i.Options.Priority
 }
 
-func (i *Item) PipelineID() string {
+func (i *Item) GroupID() string {
 	return i.Options.Pipeline
 }
 
@@ -227,7 +227,7 @@ func fromJob(job jobs.Message) *Item {
 		headers: job.Headers(),
 		Options: &Options{
 			Priority: job.Priority(),
-			Pipeline: job.PipelineID(),
+			Pipeline: job.GroupID(),
 			Delay:    job.Delay(),
 			AutoAck:  job.AutoAck(),
 		},
