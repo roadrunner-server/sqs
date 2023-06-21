@@ -10,7 +10,7 @@ require (
 	github.com/aws/smithy-go v1.13.5
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.3.0
-	github.com/roadrunner-server/api/v4 v4.3.2
+	github.com/roadrunner-server/api/v4 v4.5.0
 	github.com/roadrunner-server/endure/v2 v2.2.1
 	github.com/roadrunner-server/errors v1.2.0
 	github.com/stretchr/testify v1.8.4
@@ -19,11 +19,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.16.0
 	go.opentelemetry.io/otel/trace v1.16.0
 	go.uber.org/zap v1.24.0
-)
-
-replace (
-	github.com/roadrunner-server/api/v4 => ../../api
-	github.com/roadrunner-server/sdk/v4 => ../../sdk
 )
 
 require (
