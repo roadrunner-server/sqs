@@ -85,7 +85,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 					c.log.Debug("receive message", zap.Stringp("ID", m.MessageId))
 					item, errUnp := c.fromMsg(&m)
 
-					ctx := c.prop.Extract(context.Background(), propagation.HeaderCarrier(item.Headers))
+					ctx := c.prop.Extract(context.Background(), propagation.HeaderCarrier(item.headers))
 					ctx, span := c.tracer.Tracer(tracerName).Start(ctx, "sqs_listener")
 
 					if errUnp != nil {
@@ -142,7 +142,11 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 						span.End()
 					}
 
-					c.prop.Inject(ctx, propagation.HeaderCarrier(item.Headers))
+					if item.headers == nil {
+						item.headers = make(map[string][]string, 2)
+					}
+
+					c.prop.Inject(ctx, propagation.HeaderCarrier(item.headers))
 
 					c.pq.Insert(item)
 					// increase the current number of messages
