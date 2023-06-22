@@ -261,8 +261,6 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 
 func (c *Driver) fromMsg(msg *types.Message) (*Item, error) {
 	item, err := c.unpack(msg)
-	// 2023.2.0
-	item.Options.stopped = &c.stopped
 	if err == nil {
 		return item, nil
 	}
@@ -305,6 +303,8 @@ func (c *Driver) fromMsg(msg *types.Message) (*Item, error) {
 					// 2.12.1
 					msgInFlight: c.msgInFlight,
 					cond:        &c.cond,
+					// 2023.2
+					stopped: &c.stopped,
 				},
 			}, nil
 		default:
@@ -326,6 +326,8 @@ func (c *Driver) fromMsg(msg *types.Message) (*Item, error) {
 					// 2.12.1
 					msgInFlight: c.msgInFlight,
 					cond:        &c.cond,
+					// 2023.2
+					stopped: &c.stopped,
 				},
 			}, nil
 		}
@@ -396,6 +398,8 @@ func (c *Driver) unpack(msg *types.Message) (*Item, error) {
 			// 2.12.1
 			msgInFlight: c.msgInFlight,
 			cond:        &c.cond,
+			// 2023.2
+			stopped: &c.stopped,
 		},
 	}
 
