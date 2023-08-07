@@ -501,8 +501,10 @@ func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string
 		if err != nil {
 			return nil, errors.E(op, err)
 		}
+
 		// config with retries
-		client = sqs.NewFromConfig(awsConf, sqs.WithEndpointResolver(sqs.EndpointResolverFromURL(endpoint)), func(o *sqs.Options) {
+		client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
+			o.BaseEndpoint = &endpoint
 			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
 				opts.MaxAttempts = 60
 			})
