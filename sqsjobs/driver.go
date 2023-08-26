@@ -2,6 +2,7 @@ package sqsjobs
 
 import (
 	"context"
+	stderr "errors"
 	"net/http"
 	"strconv"
 	"sync"
@@ -11,13 +12,11 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
-	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/aws/smithy-go"
-	"github.com/roadrunner-server/api/v4/plugins/v2/jobs"
+	"github.com/roadrunner-server/api/v4/plugins/v3/jobs"
 	"github.com/roadrunner-server/errors"
 	jprop "go.opentelemetry.io/contrib/propagators/jaeger"
 	"go.opentelemetry.io/otel"
@@ -53,7 +52,6 @@ type Driver struct {
 	pq          jobs.Queue
 	log         *zap.Logger
 	pipeline    atomic.Pointer[jobs.Pipeline]
-	consumeAll  bool
 	skipDeclare bool
 
 	tracer *sdktrace.TracerProvider
@@ -135,7 +133,6 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 		cond:              sync.Cond{L: &sync.Mutex{}},
 		pq:                pq,
 		log:               log,
-		consumeAll:        conf.ConsumeAll,
 		skipDeclare:       conf.SkipQueueDeclaration,
 		messageGroupID:    conf.MessageGroupID,
 		attributes:        conf.Attributes,
@@ -232,7 +229,6 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		messageGroupID:    pipe.String(messageGroupID, ""),
 		attributes:        attr,
 		tags:              tg,
-		consumeAll:        pipe.Bool(consumeAll, false),
 		skipDeclare:       pipe.Bool(skipQueueDeclaration, false),
 		queue:             aws.String(pipe.String(queue, "default")),
 		visibilityTimeout: int32(pipe.Int(visibility, 0)),
@@ -578,21 +574,18 @@ func createQueue(client *sqs.Client, queueName *string, attributes map[string]st
 	defer cancel()
 	out, err := client.CreateQueue(ctx, &sqs.CreateQueueInput{QueueName: queueName, Attributes: attributes, Tags: tags})
 	if err != nil {
-		if oErr, ok := (err).(*smithy.OperationError); ok { //nolint:errorlint
-			if rErr, ok := oErr.Err.(*awshttp.ResponseError); ok { //nolint:errorlint
-				if _, ok := rErr.Unwrap().(*types.QueueNameExists); ok { //nolint:errorlint
-					ctxGet, cancelGet := context.WithTimeout(context.Background(), time.Second*30)
-					defer cancelGet()
-					res, errQ := client.GetQueueUrl(ctxGet, &sqs.GetQueueUrlInput{
-						QueueName: queueName,
-					}, func(_ *sqs.Options) {})
-					if errQ != nil {
-						return nil, errQ
-					}
-
-					return res.QueueUrl, nil
-				}
+		var qErr *types.QueueNameExists
+		if stderr.As(err, &qErr) {
+			ctxGet, cancelGet := context.WithTimeout(context.Background(), time.Second*30)
+			defer cancelGet()
+			res, errQ := client.GetQueueUrl(ctxGet, &sqs.GetQueueUrlInput{
+				QueueName: queueName,
+			}, func(_ *sqs.Options) {})
+			if errQ != nil {
+				return nil, errQ
 			}
+
+			return res.QueueUrl, nil
 		}
 
 		return nil, err
@@ -626,12 +619,4 @@ func bytesToStr(data []byte) string {
 	}
 
 	return unsafe.String(unsafe.SliceData(data), len(data))
-}
-
-func strToBytes(data string) []byte {
-	if data == "" {
-		return nil
-	}
-
-	return unsafe.Slice(unsafe.StringData(data), len(data))
 }

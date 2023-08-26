@@ -15,7 +15,6 @@ const (
 	messageGroupID       string = "message_group_id"
 	waitTime             string = "wait_time"
 	skipQueueDeclaration string = "skip_queue_declaration"
-	consumeAll           string = "consume_all"
 )
 
 // Config is used to parse pipeline configuration
@@ -28,9 +27,6 @@ type Config struct {
 	Endpoint     string `mapstructure:"endpoint"`
 
 	// pipeline
-
-	// Consume all jobs
-	ConsumeAll bool `mapstructure:"consume_all"`
 
 	// get queue url, do not declare
 	SkipQueueDeclaration bool `mapstructure:"skip_queue_declaration"`

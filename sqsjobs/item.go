@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
-	"github.com/roadrunner-server/api/v4/plugins/v2/jobs"
+	"github.com/roadrunner-server/api/v4/plugins/v3/jobs"
 	"github.com/roadrunner-server/errors"
 	"go.uber.org/zap"
 )
@@ -29,22 +29,13 @@ const (
 // RequeueFn is function used to requeue the item
 type RequeueFn = func(context.Context, *Item) error
 
-// immutable
-var itemAttributes = []string{ //nolint:gochecknoglobals
-	jobs.RRID,
-	jobs.RRJob,
-	jobs.RRDelay,
-	jobs.RRPriority,
-	jobs.RRHeaders,
-}
-
 type Item struct {
 	// Job contains pluginName of job broker (usually PHP class).
 	Job string `json:"job"`
 	// Ident is unique identifier of the job, should be provided from outside
 	Ident string `json:"id"`
 	// Payload is string data (usually JSON) passed to Job broker.
-	Payload string `json:"payload"`
+	Payload []byte `json:"payload"`
 	// Headers with key-values pairs
 	headers map[string][]string
 	// Options contains set of PipelineOptions specific to job execution. Can be empty.
@@ -99,7 +90,7 @@ func (i *Item) Headers() map[string][]string {
 
 // Body packs job payload into binary payload.
 func (i *Item) Body() []byte {
-	return strToBytes(i.Payload)
+	return i.Payload
 }
 
 // Context packs job context (job, id) into binary payload.
@@ -242,7 +233,7 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 	}
 
 	return &sqs.SendMessageInput{
-		MessageBody:            aws.String(i.Payload),
+		MessageBody:            aws.String(bytesToStr(i.Payload)),
 		QueueUrl:               queueURL,
 		DelaySeconds:           delay(origQueue, int32(i.Options.Delay)),
 		MessageDeduplicationId: dedup(i.ID(), origQueue),
@@ -259,116 +250,45 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 	}, nil
 }
 
-func (c *Driver) fromMsg(msg *types.Message) (*Item, error) {
-	item, err := c.unpack(msg)
-	if err == nil {
-		return item, nil
-	}
-
-	switch {
-	case errors.Is(errors.Decode, err) && c.consumeAll:
-		id := uuid.NewString()
-		c.log.Debug("get raw payload", zap.String("assigned ID", id))
-
-		var approxRecCount int
-		if val, ok := msg.Attributes[ApproximateReceiveCount]; ok {
-			approxRecCount, _ = strconv.Atoi(val)
-		}
-
-		switch {
-		case msg.Body != nil:
-			var data []byte
-			if isJSONEncoded(msg.Body) != nil {
-				data, err = json.Marshal(msg.Body)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			return &Item{
-				Job:     auto,
-				Ident:   id,
-				Payload: bytesToStr(data),
-				headers: convAttr(msg.Attributes),
-				Options: &Options{
-					Priority:           10,
-					Pipeline:           (*c.pipeline.Load()).Name(),
-					Queue:              checkBody(c.queue),
-					AutoAck:            false,
-					approxReceiveCount: int64(approxRecCount),
-					queue:              c.queue,
-					receiptHandler:     msg.ReceiptHandle,
-					client:             c.client,
-					requeueFn:          c.handleItem,
-					// 2.12.1
-					msgInFlight: c.msgInFlight,
-					cond:        &c.cond,
-					// 2023.2
-					stopped: &c.stopped,
-				},
-			}, nil
-		default:
-			return &Item{
-				Job:     auto,
-				Ident:   id,
-				Payload: checkBody(msg.Body),
-				headers: convAttr(msg.Attributes),
-				Options: &Options{
-					Priority:           10,
-					Queue:              checkBody(c.queue),
-					Pipeline:           (*c.pipeline.Load()).Name(),
-					AutoAck:            false,
-					approxReceiveCount: int64(approxRecCount),
-					queue:              c.queue,
-					receiptHandler:     msg.ReceiptHandle,
-					client:             c.client,
-					requeueFn:          c.handleItem,
-					// 2.12.1
-					msgInFlight: c.msgInFlight,
-					cond:        &c.cond,
-					// 2023.2
-					stopped: &c.stopped,
-				},
-			}, nil
-		}
-	default:
-		c.log.Debug("failed to parse the message, might be should turn on: `consume_all:true` ?")
-		return nil, err
-	}
-}
-
-func (c *Driver) unpack(msg *types.Message) (*Item, error) {
-	const op = errors.Op("sqs_unpack")
+func (c *Driver) unpack(msg *types.Message) *Item {
 	// reserved
+	var recCount int64
 	if _, ok := msg.Attributes[ApproximateReceiveCount]; !ok {
-		return nil, errors.E(op, errors.Str("failed to unpack the ApproximateReceiveCount attribute"), errors.Decode)
+		c.log.Debug("failed to unpack the ApproximateReceiveCount attribute, using -1 as a fallback")
+	} else {
+		tmp, err := strconv.Atoi(msg.Attributes[ApproximateReceiveCount])
+		if err != nil {
+			c.log.Warn("failed to unpack the ApproximateReceiveCount attribute, using -1 as a fallback", zap.Error(err))
+		}
+		recCount = int64(tmp)
 	}
 
-	for i := 0; i < len(itemAttributes); i++ {
-		if _, ok := msg.MessageAttributes[itemAttributes[i]]; !ok {
-			return nil, errors.E(op, errors.Errorf("missing queue attribute: %s", itemAttributes[i]), errors.Decode)
+	h := make(map[string][]string)
+	if _, ok := msg.MessageAttributes[jobs.RRHeaders]; ok {
+		err := json.Unmarshal(msg.MessageAttributes[jobs.RRHeaders].BinaryValue, &h)
+		if err != nil {
+			c.log.Debug("failed to unpack the headers, not a JSON", zap.Error(err))
+		}
+	} else {
+		h = convAttr(msg.Attributes)
+	}
+
+	var dl int
+	var err error
+	if _, ok := msg.MessageAttributes[jobs.RRDelay]; ok {
+		dl, err = strconv.Atoi(*msg.MessageAttributes[jobs.RRDelay].StringValue)
+		if err != nil {
+			c.log.Debug("failed to unpack the delay, not a number", zap.Error(err))
 		}
 	}
 
-	var h map[string][]string
-	err := json.Unmarshal(msg.MessageAttributes[jobs.RRHeaders].BinaryValue, &h)
-	if err != nil {
-		return nil, errors.E(op, errors.Decode)
-	}
-
-	d, err := strconv.Atoi(*msg.MessageAttributes[jobs.RRDelay].StringValue)
-	if err != nil {
-		return nil, errors.E(op, err, errors.Decode)
-	}
-
-	priority, err := strconv.Atoi(*msg.MessageAttributes[jobs.RRPriority].StringValue)
-	if err != nil {
-		return nil, errors.E(op, err, errors.Decode)
-	}
-
-	recCount, err := strconv.Atoi(msg.Attributes[ApproximateReceiveCount])
-	if err != nil {
-		return nil, errors.E(op, err, errors.Decode)
+	var priority int
+	if _, ok := msg.Attributes[jobs.RRPriority]; ok {
+		priority, err = strconv.Atoi(*msg.MessageAttributes[jobs.RRPriority].StringValue)
+		if err != nil {
+			priority = int((*c.pipeline.Load()).Priority())
+			c.log.Debug("failed to unpack the priority; inheriting the pipeline's default priority", zap.Error(err))
+		}
 	}
 
 	// for the existing messages, auto_ack field might be absent
@@ -377,20 +297,36 @@ func (c *Driver) unpack(msg *types.Message) (*Item, error) {
 		autoAck = stob(aa.StringValue)
 	}
 
-	item := &Item{
-		Job:     *msg.MessageAttributes[jobs.RRJob].StringValue,
-		Ident:   *msg.MessageAttributes[jobs.RRID].StringValue,
-		Payload: *msg.Body,
+	var rrj string
+	if val, ok := msg.MessageAttributes[jobs.RRJob]; ok {
+		rrj = *val.StringValue
+	} else {
+		rrj = auto
+	}
+
+	var rrid string
+	if val, ok := msg.MessageAttributes[jobs.RRID]; ok {
+		rrid = *val.StringValue
+	} else {
+		rrid = uuid.NewString()
+		// if we don't have RRID we assume, that we received a third party message
+		convMessageAttr(msg.MessageAttributes, &h)
+	}
+
+	return &Item{
+		Job:     rrj,
+		Ident:   rrid,
+		Payload: []byte(getordefault(msg.Body)),
 		headers: h,
 		Options: &Options{
 			AutoAck:  autoAck,
-			Delay:    int64(d),
+			Delay:    int64(dl),
 			Priority: int64(priority),
 			Pipeline: (*c.pipeline.Load()).Name(),
-			Queue:    checkBody(c.queue),
+			Queue:    getordefault(c.queue),
 
 			// private
-			approxReceiveCount: int64(recCount),
+			approxReceiveCount: recCount,
 			client:             c.client,
 			queue:              c.queueURL,
 			receiptHandler:     msg.ReceiptHandle,
@@ -402,8 +338,6 @@ func (c *Driver) unpack(msg *types.Message) (*Item, error) {
 			stopped: &c.stopped,
 		},
 	}
-
-	return item, nil
 }
 
 func mgr(gr string) *string {
@@ -449,14 +383,9 @@ func stob(s *string) bool {
 	return false
 }
 
-func checkBody(body *string) string {
+func getordefault(body *string) string {
 	if body == nil {
 		return ""
 	}
 	return *body
-}
-
-func isJSONEncoded(data *string) error {
-	var a any
-	return json.Unmarshal(strToBytes(*data), &a)
 }

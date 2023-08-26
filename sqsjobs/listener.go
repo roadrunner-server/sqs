@@ -2,7 +2,6 @@ package sqsjobs
 
 import (
 	"context"
-	stderr "errors"
 	"sync/atomic"
 	"time"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 )
@@ -83,40 +81,9 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 
 					m := message.Messages[i]
 					c.log.Debug("receive message", zap.Stringp("ID", m.MessageId))
-					item, errUnp := c.fromMsg(&m)
+					item := c.unpack(&m)
 
-					ctx := c.prop.Extract(context.Background(), propagation.HeaderCarrier(item.headers))
-					ctx, span := c.tracer.Tracer(tracerName).Start(ctx, "sqs_listener")
-
-					if errUnp != nil {
-						_, errD := c.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
-							QueueUrl:      c.queueURL,
-							ReceiptHandle: m.ReceiptHandle,
-						})
-						if errD != nil {
-							c.log.Error("message unpack, failed to delete the message from the queue", zap.Error(errUnp), zap.Error(errD))
-							c.cond.L.Unlock()
-
-							span.SetAttributes(attribute.KeyValue{
-								Key:   "error",
-								Value: attribute.StringValue(stderr.Join(errD, errUnp).Error()),
-							})
-
-							span.End()
-							continue
-						}
-
-						c.log.Error("message unpack", zap.Error(errUnp))
-						c.cond.L.Unlock()
-
-						span.SetAttributes(attribute.KeyValue{
-							Key:   "error",
-							Value: attribute.StringValue(errUnp.Error()),
-						})
-
-						span.End()
-						continue
-					}
+					ctxspan, span := c.tracer.Tracer(tracerName).Start(c.prop.Extract(context.Background(), propagation.HeaderCarrier(item.headers)), "sqs_listener")
 
 					if item.Options.AutoAck {
 						ctxT, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -129,10 +96,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 							c.log.Error("message unpack, failed to delete the message from the queue", zap.Error(errD))
 							c.cond.L.Unlock()
 
-							span.SetAttributes(attribute.KeyValue{
-								Key:   "error",
-								Value: attribute.StringValue(errD.Error()),
-							})
+							span.RecordError(errD)
 							span.End()
 							continue
 						}
@@ -146,7 +110,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 						item.headers = make(map[string][]string, 2)
 					}
 
-					c.prop.Inject(ctx, propagation.HeaderCarrier(item.headers))
+					c.prop.Inject(ctxspan, propagation.HeaderCarrier(item.headers))
 
 					c.pq.Insert(item)
 					// increase the current number of messages
