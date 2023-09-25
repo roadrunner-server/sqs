@@ -1,7 +1,9 @@
 package helpers
 
 import (
+	"bytes"
 	"net"
+	"net/http"
 	"net/rpc"
 	"testing"
 	"time"
@@ -157,5 +159,45 @@ func Stats(address string, state *jobState.State) func(t *testing.T) {
 		state.Reserved = st.Stats[0].Reserved
 		state.Ready = st.Stats[0].Ready
 		state.Priority = st.Stats[0].Priority
+	}
+}
+
+func EnableProxy(name string, t *testing.T) {
+	buf := new(bytes.Buffer)
+	buf.WriteString(`{"enabled":true}`)
+
+	resp, err := http.Post("http://127.0.0.1:8474/proxies/"+name, "application/json", buf) //nolint:noctx
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	if resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+}
+
+func DisableProxy(name string, t *testing.T) {
+	buf := new(bytes.Buffer)
+	buf.WriteString(`{"enabled":false}`)
+
+	resp, err := http.Post("http://127.0.0.1:8474/proxies/"+name, "application/json", buf) //nolint:noctx
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	if resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+}
+
+func DeleteProxy(name string, t *testing.T) {
+	client := &http.Client{}
+
+	req, err := http.NewRequest(http.MethodDelete, "http://127.0.0.1:8474/proxies/"+name, nil) //nolint:noctx
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	require.Equal(t, 204, resp.StatusCode)
+	if resp.Body != nil {
+		_ = resp.Body.Close()
 	}
 }
