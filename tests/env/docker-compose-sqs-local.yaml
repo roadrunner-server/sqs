@@ -7,3 +7,7 @@ services:
       dockerfile: Dockerfile-elastic-mq.yaml
     ports:
       - "127.0.0.1:9324:9324"
+
+  toxicproxy:
+    image: shopify/toxiproxy:latest
+    network_mode: "host"
