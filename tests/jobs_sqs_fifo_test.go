@@ -276,7 +276,7 @@ func TestSQSDeclareFifo(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-declare_fifo.yaml",
 		Prefix:  "rr",
 	}
@@ -341,12 +341,12 @@ func TestSQSDeclareFifo(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("default-decl.fifo"))
-	t.Run("ConsumePipelineFifo", helpers.ResumePipes("127.0.0.1:6001", "test-3"))
-	t.Run("PushPipelineFifo", helpers.PushToPipe("test-3", false, "127.0.0.1:6001"))
+	t.Run("ConsumePipelineFifo", helpers.ResumePipes("127.0.0.1:32341", "test-3"))
+	t.Run("PushPipelineFifo", helpers.PushToPipe("test-3", false, "127.0.0.1:32341"))
 	time.Sleep(time.Second)
-	t.Run("PausePipelineFifo", helpers.PausePipelines("127.0.0.1:6001", "test-3"))
+	t.Run("PausePipelineFifo", helpers.PausePipelines("127.0.0.1:32341", "test-3"))
 	time.Sleep(time.Second)
-	t.Run("DestroyPipelineFifo", helpers.DestroyPipelines("127.0.0.1:6001", "test-3"))
+	t.Run("DestroyPipelineFifo", helpers.DestroyPipelines("127.0.0.1:32341", "test-3"))
 
 	time.Sleep(time.Second * 5)
 	stopCh <- struct{}{}
