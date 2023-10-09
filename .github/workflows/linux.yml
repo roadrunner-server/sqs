@@ -29,12 +29,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Init Go modules Cache # Docs: <https://git.io/JfAKn#go---modules>
-        uses: actions/cache@v3
+      - uses: actions/cache@v3 # Docs: <https://git.io/JfAKn#go---modules>
         with:
-          path: ~/go/pkg/mod
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-go-
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Install Go dependencies
         run: go mod download
