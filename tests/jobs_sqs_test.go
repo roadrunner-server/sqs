@@ -1072,9 +1072,9 @@ func declareSQSPipe(queue string, address string, pipeline string) func(t *testi
 	}
 }
 
-func declareSQSPipeFifo(queue string) func(t *testing.T) {
+func declareSQSPipeFifo(queue, address string) func(t *testing.T) {
 	return func(t *testing.T) {
-		conn, err := net.Dial("tcp", "127.0.0.1:6001")
+		conn, err := net.Dial("tcp", address)
 		assert.NoError(t, err)
 		client := rpc.NewClientWithCodec(goridgeRpc.NewClientCodec(conn))
 

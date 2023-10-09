@@ -340,7 +340,7 @@ func TestSQSDeclareFifo(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("default-decl.fifo"))
+	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("default-decl.fifo", "127.0.0.1:32341"))
 	t.Run("ConsumePipelineFifo", helpers.ResumePipes("127.0.0.1:32341", "test-3"))
 	t.Run("PushPipelineFifo", helpers.PushToPipe("test-3", false, "127.0.0.1:32341"))
 	time.Sleep(time.Second)
@@ -421,13 +421,13 @@ func TestSQSJobsErrorFifo(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("default-err.fifo"))
-	t.Run("ConsumePipelineFifo", helpers.ResumePipes("127.0.0.1:6001", "test-3"))
-	t.Run("PushPipelineFifo", helpers.PushToPipe("test-3", false, "127.0.0.1:6001"))
+	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("default-err.fifo", "127.0.0.1:12342"))
+	t.Run("ConsumePipelineFifo", helpers.ResumePipes("127.0.0.1:12342", "test-3"))
+	t.Run("PushPipelineFifo", helpers.PushToPipe("test-3", false, "127.0.0.1:12342"))
 	time.Sleep(time.Second * 25)
-	t.Run("PausePipelineFifo", helpers.PausePipelines("127.0.0.1:6001", "test-3"))
+	t.Run("PausePipelineFifo", helpers.PausePipelines("127.0.0.1:12342", "test-3"))
 	time.Sleep(time.Second)
-	t.Run("DestroyPipelineFifo", helpers.DestroyPipelines("127.0.0.1:6001", "test-3"))
+	t.Run("DestroyPipelineFifo", helpers.DestroyPipelines("127.0.0.1:12342", "test-3"))
 
 	time.Sleep(time.Second * 5)
 	stopCh <- struct{}{}
