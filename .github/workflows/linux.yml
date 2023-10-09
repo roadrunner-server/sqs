@@ -11,39 +11,6 @@ on:
       - stable
 
 jobs:
-  golang:
-    name: Build (Go ${{ matrix.go }}, OS ${{matrix.os}})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-    strategy:
-      fail-fast: true
-      matrix:
-        go: [stable]
-        os: ["ubuntu-latest"]
-    steps:
-      - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v4 # action page: <https://github.com/actions/setup-go>
-        with:
-          go-version: ${{ matrix.go }}
-
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - uses: actions/cache@v3 # Docs: <https://git.io/JfAKn#go---modules>
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Install Go dependencies
-        run: go mod download
-
-      - name: Run golang tests with coverage
-        run: make test
-
   sqs_test:
     name: SQS plugin (Go ${{ matrix.go }}, PHP ${{ matrix.php }}, OS ${{matrix.os}})
     runs-on: ${{ matrix.os }}
@@ -94,7 +61,7 @@ jobs:
       - name: Install Go dependencies
         run: go mod download
 
-      - name: Run golang tests with coverage
+      - name: Run SQS tests with coverage
         env:
           RR_TEST_ENV: ${{ secrets.RR_TEST_ENV }}
           RR_SQS_TEST_ENDPOINT: ${{ secrets.RR_SQS_TEST_ENDPOINT }}
@@ -103,16 +70,20 @@ jobs:
           RR_SQS_TEST_SECRET: ${{ secrets.RR_SQS_TEST_SECRET }}
         run: |
           cd tests
+          mkdir ./coverage-ci
           docker compose -f env/docker-compose-otel.yaml up -d
           sleep 30
-          mkdir ./coverage-ci
           go test -timeout 20m -v -race -cover -tags=debug -failfast -coverpkg=$(cat pkgs.txt) -coverprofile=./coverage-ci/sqs.out -covermode=atomic jobs_sqs_test.go jobs_sqs_fifo_test.go
+
+      - name: Run SQS-unit tests with coverage
+        run: |
+          go test -timeout 20m -v -race -cover -tags=debug -failfast -coverpkg=$(cat ./tests/pkgs.txt) -coverprofile=./tests/coverage-ci/sqs_u.out -covermode=atomic ./...
 
       - name: Archive code coverage results
         uses: actions/upload-artifact@v3
         with:
           name: coverage
-          path: ./tests/coverage-ci/sqs.out
+          path: ./tests/coverage-ci/
 
   codecov:
     name: Upload codecov
