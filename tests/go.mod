@@ -7,8 +7,8 @@ toolchain go1.21.1
 require (
 	github.com/Shopify/toxiproxy/v2 v2.7.0
 	github.com/aws/aws-sdk-go-v2 v1.22.1
-	github.com/aws/aws-sdk-go-v2/config v1.21.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.15.0
+	github.com/aws/aws-sdk-go-v2/config v1.22.0
+	github.com/aws/aws-sdk-go-v2/credentials v1.15.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.26.0
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.4.0
@@ -31,7 +31,7 @@ require (
 replace github.com/roadrunner-server/sqs/v4 => ../
 
 require (
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.1 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.5.0 // indirect

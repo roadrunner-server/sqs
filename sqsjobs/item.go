@@ -26,19 +26,19 @@ const (
 	fifoSuffix              string = ".fifo"
 )
 
-// RequeueFn is function used to requeue the item
+// RequeueFn is used to requeue the item
 type RequeueFn = func(context.Context, *Item) error
 
 type Item struct {
 	// Job contains pluginName of job broker (usually PHP class).
 	Job string `json:"job"`
-	// Ident is unique identifier of the job, should be provided from outside
+	// Ident is a unique identifier of the job, should be provided from outside
 	Ident string `json:"id"`
 	// Payload is string data (usually JSON) passed to Job broker.
 	Payload []byte `json:"payload"`
 	// Headers with key-values pairs
 	headers map[string][]string
-	// Options contains set of PipelineOptions specific to job execution. Can be empty.
+	// Options contain a set of PipelineOptions specific to job execution. Can be empty.
 	Options *Options `json:"options,omitempty"`
 }
 
@@ -67,7 +67,7 @@ type Options struct {
 	requeueFn          RequeueFn
 }
 
-// DelayDuration returns delay duration in a form of time.Duration.
+// DelayDuration returns delay duration in the form of time.Duration.
 func (o *Options) DelayDuration() time.Duration {
 	return time.Second * time.Duration(o.Delay)
 }
@@ -226,7 +226,7 @@ func fromJob(job jobs.Message) *Item {
 }
 
 func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInput, error) {
-	// pack headers map
+	// pack a header map
 	data, err := json.Marshal(i.headers)
 	if err != nil {
 		return nil, err
