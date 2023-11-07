@@ -6,7 +6,7 @@ toolchain go1.21.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.22.1
-	github.com/aws/aws-sdk-go-v2/config v1.22.0
+	github.com/aws/aws-sdk-go-v2/config v1.22.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.15.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.26.0
 	github.com/aws/smithy-go v1.16.0
@@ -42,7 +42,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.19.0 // indirect
 	go.uber.org/goleak v1.2.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
