@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.22.1
 	github.com/aws/aws-sdk-go-v2/config v1.22.2
 	github.com/aws/aws-sdk-go-v2/credentials v1.15.1
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.26.0
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.27.0
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.4.0
 	github.com/roadrunner-server/api/v4 v4.9.0
@@ -111,7 +111,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
-	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/net v0.18.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.14.0 // indirect
 	golang.org/x/text v0.14.0 // indirect

@@ -47,7 +47,7 @@ func TestSQSInit(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init.yaml",
 		Prefix:  "rr",
 	}
@@ -212,7 +212,7 @@ func TestSQSAutoAck(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.2",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init.yaml",
 		Prefix:  "rr",
 	}
@@ -287,89 +287,13 @@ func TestSQSAutoAck(t *testing.T) {
 	require.Equal(t, 2, oLogger.FilterMessageSnippet("auto ack is turned on, message acknowledged").Len())
 }
 
-func TestSQSInitV27(t *testing.T) {
-	cont := endure.New(slog.LevelDebug)
-
-	cfg := &config.Plugin{
-		Path:    "configs/.rr-sqs-init-v27.yaml",
-		Prefix:  "rr",
-		Version: "2.7.0",
-	}
-
-	err := cont.RegisterAll(
-		cfg,
-		&server.Plugin{},
-		&rpcPlugin.Plugin{},
-		&logger.Plugin{},
-		&jobs.Plugin{},
-		&resetter.Plugin{},
-		&informer.Plugin{},
-		&sqsPlugin.Plugin{},
-	)
-	assert.NoError(t, err)
-
-	err = cont.Init()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ch, err := cont.Serve()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
-	stopCh := make(chan struct{}, 1)
-
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case e := <-ch:
-				assert.Fail(t, "error", e.Error.Error())
-				err = cont.Stop()
-				if err != nil {
-					assert.FailNow(t, "error", err.Error())
-				}
-			case <-sig:
-				err = cont.Stop()
-				if err != nil {
-					assert.FailNow(t, "error", err.Error())
-				}
-				return
-			case <-stopCh:
-				// timeout
-				err = cont.Stop()
-				if err != nil {
-					assert.FailNow(t, "error", err.Error())
-				}
-				return
-			}
-		}
-	}()
-
-	time.Sleep(time.Second * 3)
-	t.Run("PushPipeline", helpers.PushToPipe("test-1", false, "127.0.0.1:6001"))
-	t.Run("PushPipeline", helpers.PushToPipe("test-2", false, "127.0.0.1:6001"))
-	time.Sleep(time.Second)
-	t.Run("DestroyPipeline", helpers.DestroyPipelines("127.0.0.1:6001", "test-1", "test-2"))
-
-	stopCh <- struct{}{}
-	wg.Wait()
-}
-
-func TestSQSInitV27Attributes(t *testing.T) {
+func TestSQSInitAttributes(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
 		Path:    "configs/.rr-sqs-attr.yaml",
 		Prefix:  "rr",
-		Version: "2.7.6",
+		Version: "2023.3.0",
 	}
 
 	err := cont.RegisterAll(
@@ -439,13 +363,13 @@ func TestSQSInitV27Attributes(t *testing.T) {
 	wg.Wait()
 }
 
-func TestSQSInitV27BadResp(t *testing.T) {
+func TestSQSInitBadResp(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Path:    "configs/.rr-sqs-init-v27-br.yaml",
+		Path:    "configs/.rr-sqs-init-br.yaml",
 		Prefix:  "rr",
-		Version: "2.7.0",
+		Version: "2023.3.0",
 	}
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
@@ -524,7 +448,7 @@ func TestSQSDeclare(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-declare.yaml",
 		Prefix:  "rr",
 	}
@@ -605,7 +529,7 @@ func TestSQSJobsError(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-jobs-err.yaml",
 		Prefix:  "rr",
 	}
@@ -688,7 +612,7 @@ func TestSQSNoGlobalSection(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-no-global.yaml",
 		Prefix:  "rr",
 	}
@@ -718,7 +642,7 @@ func TestSQSStat(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-stat.yaml",
 		Prefix:  "rr",
 	}
@@ -826,7 +750,7 @@ func TestSQSRawPayload(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.10.1",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-raw.yaml",
 		Prefix:  "rr",
 	}
@@ -936,7 +860,7 @@ func TestSQSOTEL(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "v2023.1.0",
+		Version: "2023.1.0",
 		Path:    "configs/.rr-sqs-otel.yaml",
 		Prefix:  "rr",
 	}

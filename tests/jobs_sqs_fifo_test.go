@@ -30,7 +30,7 @@ func TestSQSInitFifo(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init_fifo.yaml",
 		Prefix:  "rr",
 	}
@@ -117,7 +117,7 @@ func TestSQSInitFifoAutoAck(t *testing.T) {
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	cfg := &config.Plugin{
-		Version: "2.9.2",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init_fifo.yaml",
 		Prefix:  "rr",
 	}
@@ -192,13 +192,13 @@ func TestSQSInitFifoAutoAck(t *testing.T) {
 	require.Equal(t, 2, oLogger.FilterMessageSnippet("auto ack is turned on, message acknowledged").Len())
 }
 
-func TestSQSInitV27BadRespFifo(t *testing.T) {
+func TestSQSInitBadRespFifo(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Path:    "configs/.rr-sqs-init-v27-br_fifo.yaml",
+		Path:    "configs/.rr-sqs-init-br_fifo.yaml",
 		Prefix:  "rr",
-		Version: "2.7.0",
+		Version: "2023.3.0",
 	}
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
@@ -357,7 +357,7 @@ func TestSQSJobsErrorFifo(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-jobs-err_fifo.yaml",
 		Prefix:  "rr",
 	}
@@ -440,7 +440,7 @@ func TestSQSPrefetch(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.12.1",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init_fifo-prefetch.yaml",
 		Prefix:  "rr",
 	}
