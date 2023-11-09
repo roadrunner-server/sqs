@@ -203,10 +203,10 @@ func TestSQSInitBadRespFifo(t *testing.T) {
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	err := cont.RegisterAll(
+		l,
 		cfg,
 		&server.Plugin{},
 		&rpcPlugin.Plugin{},
-		l,
 		&jobs.Plugin{},
 		&resetter.Plugin{},
 		&informer.Plugin{},
@@ -260,11 +260,11 @@ func TestSQSInitBadRespFifo(t *testing.T) {
 	}()
 
 	time.Sleep(time.Second * 3)
-	t.Run("PushPipelineFifo", helpers.PushToPipe("test-1", false, "127.0.0.1:6001"))
-	t.Run("PushPipelineFifo", helpers.PushToPipe("test-2", false, "127.0.0.1:6001"))
+	t.Run("PushPipelineFifo", helpers.PushToPipe("test-1", false, "127.0.0.1:6061"))
+	t.Run("PushPipelineFifo", helpers.PushToPipe("test-2", false, "127.0.0.1:6061"))
 	time.Sleep(time.Second)
 
-	t.Run("DestroyPipeline", helpers.DestroyPipelines("127.0.0.1:6001", "test-1", "test-2"))
+	t.Run("DestroyPipeline", helpers.DestroyPipelines("127.0.0.1:6061", "test-1", "test-2"))
 
 	stopCh <- struct{}{}
 	wg.Wait()
