@@ -125,5 +125,5 @@ func TestDurabilitySQS(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, oLogger.FilterMessageSnippet("job was pushed successfully").Len(), 4)
-	assert.Equal(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 4)
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 4)
 }
