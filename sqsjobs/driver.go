@@ -488,6 +488,7 @@ func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string
 		client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
 			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
 				opts.MaxAttempts = 60
+				opts.MaxBackoff = time.Second * 2
 			})
 		})
 	case false:
@@ -503,6 +504,7 @@ func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string
 			o.BaseEndpoint = &endpoint
 			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
 				opts.MaxAttempts = 60
+				opts.MaxBackoff = time.Second * 2
 			})
 		})
 	}

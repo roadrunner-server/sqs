@@ -31,14 +31,14 @@ import (
 func TestDurabilitySQS(t *testing.T) {
 	newClient := toxiproxy.NewClient("127.0.0.1:8474")
 
-	_, err := newClient.CreateProxy("redial", "127.0.0.1:19324", "127.0.0.1:9324")
+	_, err := newClient.CreateProxy("redial", "127.0.0.1:19324", "127.0.0.1:4566")
 	require.NoError(t, err)
 	defer helpers.DeleteProxy("redial", t)
 
 	cont := endure.New(slog.LevelDebug)
 
 	cfg := &config.Plugin{
-		Version: "2.9.0",
+		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-durability-redial.yaml",
 		Prefix:  "rr",
 	}
@@ -49,7 +49,6 @@ func TestDurabilitySQS(t *testing.T) {
 		cfg,
 		&server.Plugin{},
 		&rpcPlugin.Plugin{},
-		//&logger.Plugin{},
 		&jobs.Plugin{},
 		&resetter.Plugin{},
 		&informer.Plugin{},
