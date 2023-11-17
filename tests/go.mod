@@ -7,23 +7,23 @@ toolchain go1.21.1
 require (
 	github.com/Shopify/toxiproxy/v2 v2.7.0
 	github.com/aws/aws-sdk-go-v2 v1.23.0
-	github.com/aws/aws-sdk-go-v2/config v1.25.1
+	github.com/aws/aws-sdk-go-v2/config v1.25.2
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.28.1
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.4.0
 	github.com/roadrunner-server/api/v4 v4.9.0
-	github.com/roadrunner-server/config/v4 v4.6.1
+	github.com/roadrunner-server/config/v4 v4.6.2
 	github.com/roadrunner-server/endure/v2 v2.4.3
 	github.com/roadrunner-server/goridge/v3 v3.8.1
-	github.com/roadrunner-server/informer/v4 v4.3.8
-	github.com/roadrunner-server/jobs/v4 v4.7.7
-	github.com/roadrunner-server/logger/v4 v4.2.8
-	github.com/roadrunner-server/otel/v4 v4.3.6
-	github.com/roadrunner-server/resetter/v4 v4.0.15
-	github.com/roadrunner-server/rpc/v4 v4.2.9
-	github.com/roadrunner-server/server/v4 v4.5.1
-	github.com/roadrunner-server/sqs/v4 v4.5.8
+	github.com/roadrunner-server/informer/v4 v4.3.9
+	github.com/roadrunner-server/jobs/v4 v4.7.8
+	github.com/roadrunner-server/logger/v4 v4.2.9
+	github.com/roadrunner-server/otel/v4 v4.3.7
+	github.com/roadrunner-server/resetter/v4 v4.0.16
+	github.com/roadrunner-server/rpc/v4 v4.2.10
+	github.com/roadrunner-server/server/v4 v4.5.2
+	github.com/roadrunner-server/sqs/v4 v4.5.9
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0
 )
@@ -34,7 +34,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.7.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.7.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.10.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.10.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.17.2 // indirect
@@ -61,6 +61,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -93,18 +94,17 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.46.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.0 // indirect
-	go.opentelemetry.io/contrib/propagators/jaeger v1.21.0 // indirect
-	go.opentelemetry.io/otel v1.20.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.20.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.20.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.20.0 // indirect
-	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.20.0 // indirect
-	go.opentelemetry.io/otel/exporters/zipkin v1.20.0 // indirect
-	go.opentelemetry.io/otel/metric v1.20.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.20.0 // indirect
-	go.opentelemetry.io/otel/trace v1.20.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1 // indirect
+	go.opentelemetry.io/contrib/propagators/jaeger v1.21.1 // indirect
+	go.opentelemetry.io/otel v1.21.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.21.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.21.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.21.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.21.0 // indirect
+	go.opentelemetry.io/otel/exporters/zipkin v1.21.0 // indirect
+	go.opentelemetry.io/otel/metric v1.21.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.21.0 // indirect
+	go.opentelemetry.io/otel/trace v1.21.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.temporal.io/api v1.26.0 // indirect
 	go.temporal.io/sdk v1.25.1 // indirect
