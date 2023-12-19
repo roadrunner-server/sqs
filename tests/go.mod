@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.29.5
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.5.0
-	github.com/roadrunner-server/api/v4 v4.9.0
+	github.com/roadrunner-server/api/v4 v4.10.0
 	github.com/roadrunner-server/config/v4 v4.6.3
 	github.com/roadrunner-server/endure/v2 v2.4.3
 	github.com/roadrunner-server/goridge/v3 v3.8.1
