@@ -13,17 +13,17 @@ require (
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.5.0
 	github.com/roadrunner-server/api/v4 v4.10.0
-	github.com/roadrunner-server/config/v4 v4.6.4
+	github.com/roadrunner-server/config/v4 v4.6.5
 	github.com/roadrunner-server/endure/v2 v2.4.3
 	github.com/roadrunner-server/goridge/v3 v3.8.1
-	github.com/roadrunner-server/informer/v4 v4.3.11
-	github.com/roadrunner-server/jobs/v4 v4.7.10
-	github.com/roadrunner-server/logger/v4 v4.2.11
-	github.com/roadrunner-server/otel/v4 v4.3.9
-	github.com/roadrunner-server/resetter/v4 v4.0.18
-	github.com/roadrunner-server/rpc/v4 v4.2.12
-	github.com/roadrunner-server/server/v4 v4.5.4
-	github.com/roadrunner-server/sqs/v4 v4.5.11
+	github.com/roadrunner-server/informer/v4 v4.3.12
+	github.com/roadrunner-server/jobs/v4 v4.7.11
+	github.com/roadrunner-server/logger/v4 v4.2.12
+	github.com/roadrunner-server/otel/v4 v4.3.10
+	github.com/roadrunner-server/resetter/v4 v4.0.19
+	github.com/roadrunner-server/rpc/v4 v4.2.13
+	github.com/roadrunner-server/server/v4 v4.5.5
+	github.com/roadrunner-server/sqs/v4 v4.5.12
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0
 )
@@ -71,7 +71,7 @@ require (
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_golang v1.17.0 // indirect
+	github.com/prometheus/client_golang v1.18.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
