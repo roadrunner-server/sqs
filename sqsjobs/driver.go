@@ -85,7 +85,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 	/*
 		we need to determine in what environment we are running
 		1. Non-AWS - global sqs config should be set
-		2. AWS - configuration should be obtained from the env
+		2. AWS - configuration should be obtained from the env, but with the ability to override them with the global config
 	*/
 	insideAWS := false
 	if isInAWS() || isinAWSIMDSv2() {
@@ -116,8 +116,8 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 		return nil, errors.E(op, err)
 	}
 
-	// parse global config for the local env
-	if !insideAWS {
+	// parse global config if exists
+	if cfg.Has(pluginName) {
 		err = cfg.UnmarshalKey(pluginName, &conf)
 		if err != nil {
 			return nil, errors.E(op, err)
@@ -197,8 +197,10 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 	otel.SetTextMapPropagator(prop)
 
 	// PARSE CONFIGURATION -------
-	conf := &Config{}
-	if !insideAWS {
+	var conf Config
+
+	// parse global config if exists
+	if cfg.Has(pluginName) {
 		err := cfg.UnmarshalKey(pluginName, &conf)
 		if err != nil {
 			return nil, errors.E(op, err)
@@ -479,7 +481,16 @@ func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string
 
 	switch insideAWS {
 	case true:
-		awsConf, err := config.LoadDefaultConfig(ctx)
+		// respect user provided values for the sqs
+		opts := make([]func(*config.LoadOptions) error, 0, 1)
+		if region != "" {
+			opts = append(opts, config.WithRegion(region))
+		}
+		if secret != "" && key != "" && sessionToken != "" {
+			opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, sessionToken)))
+		}
+
+		awsConf, err := config.LoadDefaultConfig(ctx, opts...)
 		if err != nil {
 			return nil, errors.E(op, err)
 		}
