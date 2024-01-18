@@ -1,1 +1,1 @@
-# Docs: [link](https://roadrunner.dev/docs/queues-sqs/current/en)
+# Docs: [link](https://docs.roadrunner.dev/queues-and-jobs/overview-queues)
