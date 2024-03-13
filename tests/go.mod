@@ -5,8 +5,8 @@ go 1.22.0
 require (
 	github.com/Shopify/toxiproxy/v2 v2.8.0
 	github.com/aws/aws-sdk-go-v2 v1.25.2
-	github.com/aws/aws-sdk-go-v2/config v1.27.4
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.4
+	github.com/aws/aws-sdk-go-v2/config v1.27.5
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.5
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.31.1
 	github.com/goccy/go-json v0.10.2
 	github.com/google/uuid v1.6.0
@@ -34,10 +34,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.20.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.28.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.28.2 // indirect
 	github.com/aws/smithy-go v1.20.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
@@ -107,13 +107,13 @@ require (
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
-	golang.org/x/sys v0.17.0 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240228224816-df926f6c8641 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240228224816-df926f6c8641 // indirect
 	google.golang.org/grpc v1.62.0 // indirect
-	google.golang.org/protobuf v1.32.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
