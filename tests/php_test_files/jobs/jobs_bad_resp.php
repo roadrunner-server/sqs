@@ -14,9 +14,9 @@ require dirname(__DIR__) . "/vendor/autoload.php";
 $rr = new RoadRunner\Worker(new StreamRelay(\STDIN, \STDOUT));
 
 while ($in = $rr->waitPayload()) {
-    try {
-        $rr->respond(new RoadRunner\Payload('foo'));
-    } catch (\Throwable $e) {
-        $rr->error((string)$e);
-    }
+	try {
+		$rr->respond(new RoadRunner\Payload('foo'));
+	} catch (\Throwable $e) {
+		$rr->error((string)$e);
+	}
 }

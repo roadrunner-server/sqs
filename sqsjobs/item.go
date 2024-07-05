@@ -2,6 +2,7 @@ package sqsjobs
 
 import (
 	"context"
+	"maps"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
-	"github.com/roadrunner-server/api/v4/plugins/v3/jobs"
+	"github.com/roadrunner-server/api/v4/plugins/v4/jobs"
 	"github.com/roadrunner-server/errors"
 	"go.uber.org/zap"
 )
@@ -26,11 +27,13 @@ const (
 	fifoSuffix              string = ".fifo"
 )
 
+var _ jobs.Job = (*Item)(nil)
+
 // RequeueFn is used to requeue the item
 type RequeueFn = func(context.Context, *Item) error
 
 type Item struct {
-	// Job contains pluginName of job broker (usually PHP class).
+	// Job contains the pluginName of job broker (usually PHP class).
 	Job string `json:"job"`
 	// Ident is a unique identifier of the job, should be provided from outside
 	Ident string `json:"id"`
@@ -42,15 +45,15 @@ type Item struct {
 	Options *Options `json:"options,omitempty"`
 }
 
-// Options carry information about how to handle given job.
+// Options carry information about how to handle a given job.
 type Options struct {
 	// Priority is job priority, default - 10
-	// pointer to distinguish 0 as a priority and nil as priority not set
+	// pointer to distinguish 0 as a priority and nil as a priority not set
 	Priority int64 `json:"priority"`
 	// Pipeline manually specified pipeline.
 	Pipeline string `json:"pipeline,omitempty"`
 	// Delay defines time duration to delay execution for. Defaults to none.
-	Delay int64 `json:"delay,omitempty"`
+	Delay int `json:"delay,omitempty"`
 	// AutoAck jobs after receive it from the queue
 	AutoAck bool `json:"auto_ack"`
 	// SQS Queue name
@@ -176,17 +179,63 @@ func (i *Item) Nack() error {
 	return nil
 }
 
-func (i *Item) Requeue(headers map[string][]string, delay int64) error {
+func (i *Item) NackWithOptions(requeue bool, delay int) error {
 	if atomic.LoadUint64(i.Options.stopped) == 1 {
 		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
 	}
+
+	// message already deleted
+	if i.Options.AutoAck {
+		i.Options.cond.Signal()
+		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+		return nil
+	}
+
+	if requeue {
+		// requeue message
+		err := i.Requeue(nil, delay)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	_, err := i.Options.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
+		QueueUrl:      i.Options.queue,
+		ReceiptHandle: i.Options.receiptHandler,
+	})
+
+	if err != nil {
+		i.Options.cond.Signal()
+		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+		return err
+	}
+
+	i.Options.cond.Signal()
+	atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+	return nil
+}
+
+func (i *Item) Requeue(headers map[string][]string, delay int) error {
+	if atomic.LoadUint64(i.Options.stopped) == 1 {
+		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
+	}
+
 	defer func() {
 		i.Options.cond.Signal()
 		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
 	}()
+
 	// overwrite the delay
 	i.Options.Delay = delay
-	i.headers = headers
+	if i.headers == nil {
+		i.headers = make(map[string][]string)
+	}
+
+	if len(headers) > 0 {
+		maps.Copy(i.headers, headers)
+	}
 
 	// requeue message
 	err := i.Options.requeueFn(context.Background(), i)
@@ -196,7 +245,7 @@ func (i *Item) Requeue(headers map[string][]string, delay int64) error {
 
 	// in case of auto_ack a message was already deleted from the queue
 	if !i.Options.AutoAck {
-		// Delete job from the queue only after successful requeue
+		// Delete the job from the queue only after the successful requeue
 		_, err = i.Options.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
 			QueueUrl:      i.Options.queue,
 			ReceiptHandle: i.Options.receiptHandler,
@@ -219,7 +268,7 @@ func fromJob(job jobs.Message) *Item {
 		Options: &Options{
 			Priority: job.Priority(),
 			Pipeline: job.GroupID(),
-			Delay:    job.Delay(),
+			Delay:    int(job.Delay()),
 			AutoAck:  job.AutoAck(),
 		},
 	}
@@ -242,7 +291,7 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 		MessageAttributes: map[string]types.MessageAttributeValue{
 			jobs.RRID:       {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(i.Ident)},
 			jobs.RRJob:      {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(i.Job)},
-			jobs.RRDelay:    {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(strconv.Itoa(int(i.Options.Delay)))},
+			jobs.RRDelay:    {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(strconv.Itoa(i.Options.Delay))},
 			jobs.RRHeaders:  {DataType: aws.String(BinaryType), BinaryValue: data, BinaryListValues: nil, StringListValues: nil, StringValue: nil},
 			jobs.RRPriority: {DataType: aws.String(NumberType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(strconv.Itoa(int(i.Options.Priority)))},
 			jobs.RRAutoAck:  {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(btos(i.Options.AutoAck))},
@@ -309,7 +358,7 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 		rrid = *val.StringValue
 	} else {
 		rrid = uuid.NewString()
-		// if we don't have RRID we assume, that we received a third party message
+		// if we don't have RRID we assume that we received a third party message
 		convMessageAttr(msg.MessageAttributes, &h)
 	}
 
@@ -320,7 +369,7 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 		headers: h,
 		Options: &Options{
 			AutoAck:  autoAck,
-			Delay:    int64(dl),
+			Delay:    dl,
 			Priority: int64(priority),
 			Pipeline: (*c.pipeline.Load()).Name(),
 			Queue:    getordefault(c.queue),

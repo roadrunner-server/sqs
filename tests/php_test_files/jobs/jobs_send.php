@@ -12,12 +12,12 @@ $jobs = new Jobs(RPC::create('tcp://127.0.0.1:6001'));
 $queue = $jobs->connect('test-1');
 
 $queue->dispatch(
-    $queue->create(
-        'my-name',
-        ['foo' => 'bar'],
-        new KafkaOptions(
-            topic: 'mytopic',
-            offset: PartitionOffset::OFFSET_NEWEST
-        )
-    )
+	$queue->create(
+		'my-name',
+		['foo' => 'bar'],
+		new KafkaOptions(
+			topic: 'mytopic',
+			offset: PartitionOffset::OFFSET_NEWEST
+		)
+	)
 );

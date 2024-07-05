@@ -27,17 +27,17 @@ import (
 	"github.com/goccy/go-json"
 	jobsProto "github.com/roadrunner-server/api/v4/build/jobs/v1"
 	jobState "github.com/roadrunner-server/api/v4/plugins/v1/jobs"
-	"github.com/roadrunner-server/config/v4"
+	"github.com/roadrunner-server/config/v5"
 	"github.com/roadrunner-server/endure/v2"
 	goridgeRpc "github.com/roadrunner-server/goridge/v3/pkg/rpc"
-	"github.com/roadrunner-server/informer/v4"
-	"github.com/roadrunner-server/jobs/v4"
-	"github.com/roadrunner-server/logger/v4"
-	"github.com/roadrunner-server/otel/v4"
-	"github.com/roadrunner-server/resetter/v4"
-	rpcPlugin "github.com/roadrunner-server/rpc/v4"
-	"github.com/roadrunner-server/server/v4"
-	sqsPlugin "github.com/roadrunner-server/sqs/v4"
+	"github.com/roadrunner-server/informer/v5"
+	"github.com/roadrunner-server/jobs/v5"
+	"github.com/roadrunner-server/logger/v5"
+	"github.com/roadrunner-server/otel/v5"
+	"github.com/roadrunner-server/resetter/v5"
+	rpcPlugin "github.com/roadrunner-server/rpc/v5"
+	"github.com/roadrunner-server/server/v5"
+	sqsPlugin "github.com/roadrunner-server/sqs/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -49,7 +49,6 @@ func TestSQSInit(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(
@@ -126,7 +125,6 @@ func TestSQSRemovePQ(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.2.0",
 		Path:    "configs/.rr-sqs-pq.yaml",
-		Prefix:  "rr",
 	}
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
@@ -214,7 +212,6 @@ func TestSQSAutoAck(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init.yaml",
-		Prefix:  "rr",
 	}
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
@@ -292,7 +289,6 @@ func TestSQSInitAttributes(t *testing.T) {
 
 	cfg := &config.Plugin{
 		Path:    "configs/.rr-sqs-attr.yaml",
-		Prefix:  "rr",
 		Version: "2023.3.0",
 	}
 
@@ -368,7 +364,6 @@ func TestSQSInitBadResp(t *testing.T) {
 
 	cfg := &config.Plugin{
 		Path:    "configs/.rr-sqs-init-br.yaml",
-		Prefix:  "rr",
 		Version: "2023.3.0",
 	}
 
@@ -450,7 +445,6 @@ func TestSQSDeclare(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-declare.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(
@@ -531,7 +525,6 @@ func TestSQSJobsError(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-jobs-err.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(
@@ -614,7 +607,6 @@ func TestSQSNoGlobalSection(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-no-global.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(
@@ -644,7 +636,6 @@ func TestSQSStat(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-stat.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(
@@ -752,7 +743,6 @@ func TestSQSRawPayload(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-raw.yaml",
-		Prefix:  "rr",
 	}
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
@@ -862,7 +852,6 @@ func TestSQSOTEL(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.1.0",
 		Path:    "configs/.rr-sqs-otel.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(

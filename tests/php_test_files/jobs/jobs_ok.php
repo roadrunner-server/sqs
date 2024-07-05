@@ -16,9 +16,9 @@ require dirname(__DIR__) . "/vendor/autoload.php";
 $consumer = new Spiral\RoadRunner\Jobs\Consumer();
 
 while ($task = $consumer->waitTask()) {
-    try {
-        $task->complete();
-    } catch (\Throwable $e) {
-        $rr->error((string)$e);
-    }
+	try {
+		$task->ack();
+	} catch (\Throwable $e) {
+		$rr->error((string)$e);
+	}
 }

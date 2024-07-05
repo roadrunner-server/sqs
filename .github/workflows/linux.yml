@@ -1,14 +1,6 @@
 name: SQS
 
-on:
-  push:
-    branches:
-      - master
-      - stable
-  pull_request:
-    branches:
-      - master
-      - stable
+on: [push, pull_request]
 
 jobs:
   sqs_test:
@@ -17,7 +9,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        php: [ "8.2" ]
+        php: [ "8.3" ]
         go: [ stable ]
         os: [ "ubuntu-latest" ]
     steps:

@@ -12,15 +12,15 @@ import (
 	"tests/helpers"
 	mocklogger "tests/mock"
 
-	"github.com/roadrunner-server/config/v4"
+	"github.com/roadrunner-server/config/v5"
 	"github.com/roadrunner-server/endure/v2"
-	"github.com/roadrunner-server/informer/v4"
-	"github.com/roadrunner-server/jobs/v4"
-	"github.com/roadrunner-server/logger/v4"
-	"github.com/roadrunner-server/resetter/v4"
-	rpcPlugin "github.com/roadrunner-server/rpc/v4"
-	"github.com/roadrunner-server/server/v4"
-	"github.com/roadrunner-server/sqs/v4"
+	"github.com/roadrunner-server/informer/v5"
+	"github.com/roadrunner-server/jobs/v5"
+	"github.com/roadrunner-server/logger/v5"
+	"github.com/roadrunner-server/resetter/v5"
+	rpcPlugin "github.com/roadrunner-server/rpc/v5"
+	"github.com/roadrunner-server/server/v5"
+	"github.com/roadrunner-server/sqs/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -32,7 +32,6 @@ func TestSQSInitFifo(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init_fifo.yaml",
-		Prefix:  "rr",
 	}
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
@@ -119,7 +118,6 @@ func TestSQSInitFifoAutoAck(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init_fifo.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(
@@ -197,7 +195,6 @@ func TestSQSInitBadRespFifo(t *testing.T) {
 
 	cfg := &config.Plugin{
 		Path:    "configs/.rr-sqs-init-br_fifo.yaml",
-		Prefix:  "rr",
 		Version: "2023.3.0",
 	}
 
@@ -278,7 +275,6 @@ func TestSQSDeclareFifo(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-declare_fifo.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(
@@ -359,7 +355,6 @@ func TestSQSJobsErrorFifo(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-jobs-err_fifo.yaml",
-		Prefix:  "rr",
 	}
 
 	err := cont.RegisterAll(
@@ -442,7 +437,6 @@ func TestSQSPrefetch(t *testing.T) {
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init_fifo-prefetch.yaml",
-		Prefix:  "rr",
 	}
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)

@@ -16,14 +16,14 @@ require dirname(__DIR__) . "/vendor/autoload.php";
 $consumer = new Spiral\RoadRunner\Jobs\Consumer();
 
 while ($task = $consumer->waitTask()) {
-    try {
-        $val = random_int(0, 1000);
-        if ($val > 995) {
-            sleep(60);
-        }
+	try {
+		$val = random_int(0, 1000);
+		if ($val > 995) {
+			sleep(60);
+		}
 
-        $task->complete();
-    } catch (\Throwable $e) {
-        $rr->error((string)$e);
-    }
+		$task->ack();
+	} catch (\Throwable $e) {
+		$rr->error((string)$e);
+	}
 }

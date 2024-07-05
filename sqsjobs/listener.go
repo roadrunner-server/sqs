@@ -2,6 +2,7 @@ package sqsjobs
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -33,10 +34,10 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 				return
 			default:
 				message, err := c.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
-					QueueUrl:              c.queueURL,
-					MaxNumberOfMessages:   10,
-					AttributeNames:        []types.QueueAttributeName{types.QueueAttributeName(ApproximateReceiveCount)},
-					MessageAttributeNames: []string{All},
+					QueueUrl:                    c.queueURL,
+					MaxNumberOfMessages:         10,
+					MessageSystemAttributeNames: []types.MessageSystemAttributeName{types.MessageSystemAttributeName(ApproximateReceiveCount)},
+					MessageAttributeNames:       []string{All},
 					// The new value for the message's visibility timeout (in seconds). Values range: 0
 					// to 43200. Maximum: 12 hours.
 					VisibilityTimeout: c.visibilityTimeout,
@@ -44,9 +45,12 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 				})
 
 				if err != nil { //nolint:nestif
-					if oErr, ok := (err).(*smithy.OperationError); ok { //nolint:errorlint
-						if rErr, ok := oErr.Err.(*http.ResponseError); ok { //nolint:errorlint
-							if apiErr, ok := rErr.Err.(*smithy.GenericAPIError); ok { //nolint:errorlint
+					var oErr *smithy.OperationError
+					if errors.As(err, &oErr) {
+						var rErr *http.ResponseError
+						if errors.As(oErr.Err, &rErr) {
+							var apiErr *smithy.GenericAPIError
+							if errors.As(rErr.Err, &apiErr) {
 								// in case of NonExistentQueue - recreate the queue
 								if apiErr.Code == NonExistentQueue {
 									c.log.Error("receive message", zap.String("error code", apiErr.ErrorCode()), zap.String("message", apiErr.ErrorMessage()), zap.String("error fault", apiErr.ErrorFault().String()))
