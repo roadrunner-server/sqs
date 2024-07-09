@@ -922,7 +922,7 @@ func TestSQSOTEL(t *testing.T) {
 	stopCh <- struct{}{}
 	wg.Wait()
 
-	resp, err := http.Get("http://127.0.0.1:9411/api/v2/spans?serviceName=rr_test_sqs")
+	resp, err := http.Get("http://127.0.0.1:9411/api/v2/spans?serviceName=rr_test_sqs") //nolint:noctx
 	assert.NoError(t, err)
 
 	buf, err := io.ReadAll(resp.Body)
