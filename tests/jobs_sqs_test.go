@@ -26,7 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/goccy/go-json"
 	jobsProto "github.com/roadrunner-server/api/v4/build/jobs/v1"
-	jobState "github.com/roadrunner-server/api/v4/plugins/v1/jobs"
+	jobState "github.com/roadrunner-server/api/v4/plugins/v4/jobs"
 	"github.com/roadrunner-server/config/v5"
 	"github.com/roadrunner-server/endure/v2"
 	goridgeRpc "github.com/roadrunner-server/goridge/v3/pkg/rpc"
