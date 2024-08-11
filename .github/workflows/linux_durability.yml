@@ -58,11 +58,11 @@ jobs:
       - name: Run golang tests with coverage
         run: |
           cd tests
-          docker-compose -f env/docker-compose-sqs-local.yaml up -d --remove-orphans
+          docker compose -f env/docker-compose-sqs-local.yaml up -d --remove-orphans
           sleep 30
           mkdir ./coverage-ci
           go test -timeout 20m -v -race -cover -tags=debug -failfast -coverpkg=$(cat pkgs.txt) -coverprofile=./coverage-ci/sqs_dur.out -covermode=atomic jobs_sqs_durability_test.go
-          docker-compose -f env/docker-compose-sqs-local.yaml down
+          docker compose -f env/docker-compose-sqs-local.yaml down
 
       - name: Archive code coverage results
         uses: actions/upload-artifact@v4
