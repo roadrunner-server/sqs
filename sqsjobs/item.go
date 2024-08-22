@@ -284,7 +284,7 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 	return &sqs.SendMessageInput{
 		MessageBody:            aws.String(bytesToStr(i.Payload)),
 		QueueUrl:               queueURL,
-		DelaySeconds:           delay(origQueue, int32(i.Options.Delay)),
+		DelaySeconds:           delay(origQueue, int32(i.Options.Delay)), //nolint:gosec
 		MessageDeduplicationId: dedup(i.ID(), origQueue),
 		// message group used for the FIFO
 		MessageGroupId: mgr(mg),

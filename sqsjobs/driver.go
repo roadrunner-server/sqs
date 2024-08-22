@@ -233,11 +233,11 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		tags:              tg,
 		skipDeclare:       pipe.Bool(skipQueueDeclaration, false),
 		queue:             aws.String(pipe.String(queue, "default")),
-		visibilityTimeout: int32(pipe.Int(visibility, 0)),
-		waitTime:          int32(pipe.Int(waitTime, 0)),
+		visibilityTimeout: int32(pipe.Int(visibility, 0)), //nolint:gosec
+		waitTime:          int32(pipe.Int(waitTime, 0)),   //nolint:gosec
 		pauseCh:           make(chan struct{}, 1),
 		// new in 2.12.1
-		msgInFlightLimit: ptr(int32(pipe.Int(pref, 10))),
+		msgInFlightLimit: ptr(int32(pipe.Int(pref, 10))), //nolint:gosec
 		msgInFlight:      ptr(int64(0)),
 	}
 
