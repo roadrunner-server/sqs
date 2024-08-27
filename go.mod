@@ -6,8 +6,8 @@ toolchain go1.23.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.4
-	github.com/aws/aws-sdk-go-v2/config v1.27.30
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.29
+	github.com/aws/aws-sdk-go-v2/config v1.27.31
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.30
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.34.5
 	github.com/aws/smithy-go v1.20.4
 	github.com/goccy/go-json v0.10.3
@@ -16,7 +16,7 @@ require (
 	github.com/roadrunner-server/endure/v2 v2.4.6
 	github.com/roadrunner-server/errors v1.4.1
 	github.com/stretchr/testify v1.9.0
-	go.opentelemetry.io/contrib/propagators/jaeger v1.28.0
+	go.opentelemetry.io/contrib/propagators/jaeger v1.29.0
 	go.opentelemetry.io/otel v1.29.0
 	go.opentelemetry.io/otel/sdk v1.29.0
 	go.opentelemetry.io/otel/trace v1.29.0
