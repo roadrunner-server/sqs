@@ -2,7 +2,7 @@ module github.com/roadrunner-server/sqs/v5
 
 go 1.23
 
-toolchain go1.23.0
+toolchain go1.23.1
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.5
