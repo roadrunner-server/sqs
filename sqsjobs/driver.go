@@ -87,7 +87,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 		1. Non-AWS - global sqs config should be set
 		2. AWS - configuration should be obtained from the env, but with the ability to override them with the global config
 	*/
-	insideAWS := false
+	var insideAWS bool
 	if isInAWS() || isinAWSIMDSv2() {
 		insideAWS = true
 	}
@@ -179,7 +179,7 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		1. Non-AWS - global sqs config should be set
 		2. AWS - configuration should be obtained from the env
 	*/
-	insideAWS := false
+	var insideAWS bool
 	if isInAWS() || isinAWSIMDSv2() {
 		insideAWS = true
 	}
@@ -432,7 +432,7 @@ func (c *Driver) State(ctx context.Context) (*jobs.State, error) {
 	pipe := *c.pipeline.Load()
 
 	out := &jobs.State{
-		Priority: uint64(pipe.Priority()),
+		Priority: uint64(pipe.Priority()), //nolint:gosec
 		Pipeline: pipe.Name(),
 		Driver:   pipe.Driver(),
 		Queue:    *c.queueURL,
