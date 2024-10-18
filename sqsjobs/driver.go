@@ -477,8 +477,8 @@ func checkEnv(key, secret, sessionToken, endpoint, region string) (*sqs.Client, 
 	// config with retries
 	client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
 		if endpoint != "" {
-			// Setting the endpoint is only necessary in non-AWS context, as AWS environment variables will tell sqs which
-			// endpoint to use by default. We can, however, still provide an SQS endpoint for a different region.
+			// Setting the endpoint is only necessary when self-hosting the queue, as region (either from AWS env or
+			// set in rr config) will tell us which AWS SQS endpoint to use.
 			o.BaseEndpoint = &endpoint
 		}
 		o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
