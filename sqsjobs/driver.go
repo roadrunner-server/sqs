@@ -3,7 +3,6 @@ package sqsjobs
 import (
 	"context"
 	stderr "errors"
-	"net/http"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -27,11 +26,9 @@ import (
 )
 
 const (
-	pluginName           string = "sqs"
-	tracerName           string = "jobs"
-	awsMetaDataURL       string = "http://169.254.169.254/latest/dynamic/instance-identity/"
-	awsMetaDataIMDSv2URL string = "http://169.254.169.254/latest/api/token"
-	awsTokenHeader       string = "X-aws-ec2-metadata-token-ttl-seconds" //nolint:gosec
+	pluginName   string = "sqs"
+	tracerName   string = "jobs"
+	assumeAWSEnv string = "No sqs plugin configuration section was found; assuming we're in AWS environment and want to use default values."
 )
 
 var _ jobs.Driver = (*Driver)(nil)
@@ -82,24 +79,10 @@ type Driver struct {
 
 func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
-	/*
-		we need to determine in what environment we are running
-		1. Non-AWS - global sqs config should be set
-		2. AWS - configuration should be obtained from the env, but with the ability to override them with the global config
-	*/
-	var insideAWS bool
-	if isInAWS() || isinAWSIMDSv2() {
-		insideAWS = true
-	}
 
 	// if no such key - error
 	if !cfg.Has(configKey) {
 		return nil, errors.E(op, errors.Errorf("no configuration by provided key: %s", configKey))
-	}
-
-	// if no global section - try to fetch IAM creds
-	if !cfg.Has(pluginName) && !insideAWS {
-		return nil, errors.E(op, errors.Str("no global sqs configuration, global configuration should contain sqs section"))
 	}
 
 	if tracer == nil {
@@ -122,6 +105,8 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 		if err != nil {
 			return nil, errors.E(op, err)
 		}
+	} else {
+		log.Info(assumeAWSEnv)
 	}
 
 	conf.InitDefault()
@@ -147,7 +132,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 	}
 
 	// PARSE CONFIGURATION -------
-	jb.client, err = checkEnv(insideAWS, conf.Key, conf.Secret, conf.SessionToken, conf.Endpoint, conf.Region)
+	jb.client, err = checkEnv(conf.Key, conf.Secret, conf.SessionToken, conf.Endpoint, conf.Region)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
@@ -174,21 +159,6 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
-	/*
-		we need to determine in what environment we are running
-		1. Non-AWS - global sqs config should be set
-		2. AWS - configuration should be obtained from the env
-	*/
-	var insideAWS bool
-	if isInAWS() || isinAWSIMDSv2() {
-		insideAWS = true
-	}
-
-	// if no global section
-	if !cfg.Has(pluginName) && !insideAWS {
-		return nil, errors.E(op, errors.Str("no global sqs configuration, global configuration should contain sqs section"))
-	}
-
 	if tracer == nil {
 		tracer = sdktrace.NewTracerProvider()
 	}
@@ -205,6 +175,8 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		if err != nil {
 			return nil, errors.E(op, err)
 		}
+	} else {
+		log.Info(assumeAWSEnv)
 	}
 
 	conf.InitDefault()
@@ -243,7 +215,7 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 
 	// PARSE CONFIGURATION -------
 
-	jb.client, err = checkEnv(insideAWS, conf.Key, conf.Secret, conf.SessionToken, conf.Endpoint, conf.Region)
+	jb.client, err = checkEnv(conf.Key, conf.Secret, conf.SessionToken, conf.Endpoint, conf.Region)
 	if err != nil {
 		return nil, errors.E(op, err)
 	}
@@ -473,52 +445,44 @@ func (c *Driver) handleItem(ctx context.Context, msg *Item) error {
 	return nil
 }
 
-func checkEnv(insideAWS bool, key, secret, sessionToken, endpoint, region string) (*sqs.Client, error) {
+func checkEnv(key, secret, sessionToken, endpoint, region string) (*sqs.Client, error) {
 	const op = errors.Op("check_env")
 	var client *sqs.Client
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	switch insideAWS {
-	case true:
-		// respect user provided values for the sqs
-		opts := make([]func(*config.LoadOptions) error, 0, 1)
-		if region != "" {
-			opts = append(opts, config.WithRegion(region))
-		}
-		if secret != "" && key != "" && sessionToken != "" {
-			opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, sessionToken)))
-		}
+	opts := make([]func(*config.LoadOptions) error, 0, 1)
 
-		awsConf, err := config.LoadDefaultConfig(ctx, opts...)
-		if err != nil {
-			return nil, errors.E(op, err)
-		}
-
-		// config with retries
-		client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
-			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
-				opts.MaxAttempts = 60
-				opts.MaxBackoff = time.Second * 2
-			})
-		})
-	case false:
-		awsConf, err := config.LoadDefaultConfig(ctx,
-			config.WithRegion(region),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, sessionToken)))
-		if err != nil {
-			return nil, errors.E(op, err)
-		}
-
-		// config with retries
-		client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
-			o.BaseEndpoint = &endpoint
-			o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
-				opts.MaxAttempts = 60
-				opts.MaxBackoff = time.Second * 2
-			})
-		})
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
 	}
+
+	// session_token is optional; if no credentials are provided, we assume user wants to default to AWS IAM.
+	if secret != "" && key != "" {
+		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(key, secret, sessionToken)))
+	}
+
+	if endpoint != "" {
+		// Setting the endpoint is only necessary when self-hosting the queue, as region (either from AWS env or
+		// set in rr config) will tell us which AWS SQS endpoint to use.
+		opts = append(opts, config.WithBaseEndpoint(endpoint))
+	}
+
+	// Load default credentials; if in AWS context, this will auth as the associated IAM role.
+	// We override this config with user-provided values, if any.
+	awsConf, err := config.LoadDefaultConfig(ctx, opts...)
+
+	if err != nil {
+		return nil, errors.E(op, err)
+	}
+
+	// config with retries
+	client = sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
+		o.Retryer = retry.NewStandard(func(opts *retry.StandardOptions) {
+			opts.MaxAttempts = 60
+			opts.MaxBackoff = time.Second * 2
+		})
+	})
 
 	return client, nil
 }
@@ -541,47 +505,6 @@ func manageQueue(jb *Driver) error {
 	return nil
 }
 
-// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html
-// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/identify_ec2_instances.html
-func isInAWS() bool {
-	client := &http.Client{
-		Timeout: time.Second * 2,
-	}
-	resp, err := client.Get(awsMetaDataURL) //nolint:noctx
-	if err != nil {
-		return false
-	}
-
-	_ = resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
-}
-
-// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
-func isinAWSIMDSv2() bool {
-	client := &http.Client{
-		Timeout: time.Second * 2,
-	}
-
-	// probably we're in the IMDSv2, let's try different endpoint
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, awsMetaDataIMDSv2URL, nil)
-	if err != nil {
-		return false
-	}
-
-	// 10 seconds should be fine to just check
-	req.Header.Set(awsTokenHeader, "10")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-
-	_ = resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
-}
-
 func createQueue(client *sqs.Client, queueName *string, attributes map[string]string, tags map[string]string) (*string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
@@ -589,16 +512,8 @@ func createQueue(client *sqs.Client, queueName *string, attributes map[string]st
 	if err != nil {
 		var qErr *types.QueueNameExists
 		if stderr.As(err, &qErr) {
-			ctxGet, cancelGet := context.WithTimeout(context.Background(), time.Second*30)
-			defer cancelGet()
-			res, errQ := client.GetQueueUrl(ctxGet, &sqs.GetQueueUrlInput{
-				QueueName: queueName,
-			}, func(_ *sqs.Options) {})
-			if errQ != nil {
-				return nil, errQ
-			}
-
-			return res.QueueUrl, nil
+			// Queue already exists; return existing URL instead.
+			return getQueueURL(client, queueName)
 		}
 
 		return nil, err
