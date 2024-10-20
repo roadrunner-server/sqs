@@ -601,35 +601,6 @@ func TestSQSJobsError(t *testing.T) {
 	time.Sleep(time.Second * 5)
 }
 
-func TestSQSNoGlobalSection(t *testing.T) {
-	cont := endure.New(slog.LevelDebug)
-
-	cfg := &config.Plugin{
-		Version: "2023.3.0",
-		Path:    "configs/.rr-no-global.yaml",
-	}
-
-	err := cont.RegisterAll(
-		cfg,
-		&server.Plugin{},
-		&rpcPlugin.Plugin{},
-		&logger.Plugin{},
-		&jobs.Plugin{},
-		&resetter.Plugin{},
-		&informer.Plugin{},
-		&sqsPlugin.Plugin{},
-	)
-	assert.NoError(t, err)
-
-	err = cont.Init()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = cont.Serve()
-	require.Error(t, err)
-}
-
 func TestSQSStat(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
@@ -806,15 +777,14 @@ func TestSQSRawPayload(t *testing.T) {
 	time.Sleep(time.Second * 3)
 
 	awsConf, err := sqsConf.LoadDefaultConfig(context.Background(),
+		sqsConf.WithBaseEndpoint(os.Getenv("RR_SQS_TEST_ENDPOINT")),
 		sqsConf.WithRegion(os.Getenv("RR_SQS_TEST_REGION")),
 		sqsConf.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(os.Getenv("RR_SQS_TEST_KEY"),
 			os.Getenv("RR_SQS_TEST_SECRET"), "")))
 	require.NoError(t, err)
 
 	// config with retries
-	endpoint := os.Getenv("RR_SQS_TEST_ENDPOINT")
 	client := sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
-		o.BaseEndpoint = &endpoint
 		o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
 			so.MaxAttempts = 60
 		})

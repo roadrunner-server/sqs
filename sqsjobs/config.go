@@ -109,10 +109,6 @@ type Config struct {
 }
 
 func (c *Config) InitDefault() {
-	if c.Endpoint == "" {
-		c.Endpoint = "http://127.0.0.1:9324"
-	}
-
 	if c.Queue == nil {
 		c.Queue = aws.String("default")
 	}
