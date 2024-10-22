@@ -601,6 +601,120 @@ func TestSQSJobsError(t *testing.T) {
 	time.Sleep(time.Second * 5)
 }
 
+func TestSQSErrorVisibilityTimeout(t *testing.T) {
+	cont := endure.New(slog.LevelDebug)
+
+	cfg := &config.Plugin{
+		Version: "2023.3.0",
+		Path:    "configs/.rr-sqs-error-visibility.yaml",
+	}
+
+	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+
+	err := cont.RegisterAll(
+		cfg,
+		&server.Plugin{},
+		&rpcPlugin.Plugin{},
+		l,
+		&logger.Plugin{},
+		&jobs.Plugin{},
+		&resetter.Plugin{},
+		&informer.Plugin{},
+		&sqsPlugin.Plugin{},
+	)
+	assert.NoError(t, err)
+
+	err = cont.Init()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ch, err := cont.Serve()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	stopCh := make(chan struct{}, 1)
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case e := <-ch:
+				assert.Fail(t, "error", e.Error.Error())
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+			case <-sig:
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+				return
+			case <-stopCh:
+				// timeout
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+				return
+			}
+		}
+	}()
+
+	time.Sleep(time.Second * 3)
+
+	address := "127.0.0.1:6010"
+	pipe := "test-err-visibility"
+
+	// Push 4 jobs to pipeline; all will fail because PHP config nacks everything here
+	t.Run("PushPipeline1", helpers.PushToPipe(pipe, false, address))
+	t.Run("PushPipeline2", helpers.PushToPipe(pipe, false, address))
+	t.Run("PushPipeline3", helpers.PushToPipe(pipe, false, address))
+	t.Run("PushPipeline4", helpers.PushToPipe(pipe, false, address))
+
+	// Wait for all 4 jobs to NACK
+	time.Sleep(time.Second * 10)
+
+	// Ensure exactly 4 jobs were processed in these 10 seconds (no retries of failed jobs)
+	require.Equal(t, 4, oLogger.FilterMessageSnippet("job was processed successfully").Len())
+
+	// Stop consuming messages
+	t.Run("PausePipeline", helpers.PausePipelines(address, pipe))
+
+	// Sleep for 70 seconds; wait for queue metadata to update (10+70)
+	// This takes at least 60 seconds.
+	// See https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_GetQueueAttributes.html
+	time.Sleep(time.Second * 70)
+
+	// Check that the queue has 4 messages and that they're all "reserved" ("in flight" on AWS SQS)
+	// During this, no messages are "active"
+	out := &jobState.State{}
+	t.Run("StatsBeforeErrorVisibilityTimeout", helpers.Stats(address, out))
+	assert.Equal(t, int64(0), out.Active, "No messages must be available on the queue")
+	assert.Equal(t, int64(4), out.Reserved, "4 messages must be reserved on the queue")
+
+	// Sleep for another 40 seconds (visibility error delay is 90 in this test, so 70 + 10 + 40 == 120s)
+	// Sometimes these tests fail if we don't have large enough margins on delays
+	time.Sleep(time.Second * 40)
+	// Now the jobs should be visible again; check metadata for available (pipeline paused, so jobs are not consumed)
+	t.Run("StatsAfterErrorVisibilityTimeout", helpers.Stats(address, out))
+	assert.Equal(t, int64(4), out.Active, "4 messages must be available on the queue")
+	assert.Equal(t, int64(0), out.Reserved, "No reserved messages must be available on the queue")
+
+	t.Run("DestroyPipeline", helpers.DestroyPipelines(address, pipe))
+
+	stopCh <- struct{}{}
+	wg.Wait()
+}
+
 func TestSQSStat(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
@@ -686,9 +800,9 @@ func TestSQSStat(t *testing.T) {
 	out := &jobState.State{}
 	t.Run("Stats", helpers.Stats(address, out))
 
-	assert.Equal(t, out.Pipeline, pipe)
-	assert.Equal(t, out.Driver, "sqs")
-	assert.Equal(t, out.Queue, "https://sqs.us-east-1.amazonaws.com/569200086642/test-stat-sqs")
+	assert.Equal(t, pipe, out.Pipeline)
+	assert.Equal(t, "sqs", out.Driver)
+	assert.Equal(t, "https://sqs.us-east-1.amazonaws.com/569200086642/test-stat-sqs", out.Queue)
 
 	time.Sleep(time.Second)
 	t.Run("ResumePipeline", helpers.ResumePipes(address, pipe))
@@ -697,9 +811,9 @@ func TestSQSStat(t *testing.T) {
 	out = &jobState.State{}
 	t.Run("Stats", helpers.Stats(address, out))
 
-	assert.Equal(t, out.Pipeline, pipe)
-	assert.Equal(t, out.Driver, "sqs")
-	assert.Equal(t, out.Queue, "https://sqs.us-east-1.amazonaws.com/569200086642/test-stat-sqs")
+	assert.Equal(t, pipe, out.Pipeline)
+	assert.Equal(t, "sqs", out.Driver)
+	assert.Equal(t, "https://sqs.us-east-1.amazonaws.com/569200086642/test-stat-sqs", out.Queue)
 
 	t.Run("DestroyPipeline", helpers.DestroyPipelines(address, pipe))
 

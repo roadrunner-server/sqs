@@ -58,10 +58,12 @@ type Driver struct {
 	cancel context.CancelFunc
 
 	// connection info
-	queue             *string
-	messageGroupID    string
-	waitTime          int32
-	visibilityTimeout int32
+	queue                  *string
+	messageGroupID         string
+	waitTime               int32
+	visibilityTimeout      int32
+	errorVisibilityTimeout int32
+	retainFailedJobs       bool
 
 	// if a user invokes several resume operations
 	listeners uint32
@@ -113,19 +115,21 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 
 	// initialize job Driver
 	jb := &Driver{
-		tracer:            tracer,
-		prop:              prop,
-		cond:              sync.Cond{L: &sync.Mutex{}},
-		pq:                pq,
-		log:               log,
-		skipDeclare:       conf.SkipQueueDeclaration,
-		messageGroupID:    conf.MessageGroupID,
-		attributes:        conf.Attributes,
-		tags:              conf.Tags,
-		queue:             conf.Queue,
-		visibilityTimeout: conf.VisibilityTimeout,
-		waitTime:          conf.WaitTimeSeconds,
-		pauseCh:           make(chan struct{}, 1),
+		tracer:                 tracer,
+		prop:                   prop,
+		cond:                   sync.Cond{L: &sync.Mutex{}},
+		pq:                     pq,
+		log:                    log,
+		skipDeclare:            conf.SkipQueueDeclaration,
+		messageGroupID:         conf.MessageGroupID,
+		attributes:             conf.Attributes,
+		tags:                   conf.Tags,
+		queue:                  conf.Queue,
+		visibilityTimeout:      conf.VisibilityTimeout,
+		errorVisibilityTimeout: conf.ErrorVisibilityTimeout,
+		retainFailedJobs:       conf.RetainFailedJobs,
+		waitTime:               conf.WaitTimeSeconds,
+		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
 		msgInFlightLimit: ptr(conf.Prefetch),
 		msgInFlight:      ptr(int64(0)),
@@ -195,19 +199,21 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 
 	// initialize job Driver
 	jb := &Driver{
-		tracer:            tracer,
-		prop:              prop,
-		cond:              sync.Cond{L: &sync.Mutex{}},
-		pq:                pq,
-		log:               log,
-		messageGroupID:    pipe.String(messageGroupID, ""),
-		attributes:        attr,
-		tags:              tg,
-		skipDeclare:       pipe.Bool(skipQueueDeclaration, false),
-		queue:             aws.String(pipe.String(queue, "default")),
-		visibilityTimeout: int32(pipe.Int(visibility, 0)), //nolint:gosec
-		waitTime:          int32(pipe.Int(waitTime, 0)),   //nolint:gosec
-		pauseCh:           make(chan struct{}, 1),
+		tracer:                 tracer,
+		prop:                   prop,
+		cond:                   sync.Cond{L: &sync.Mutex{}},
+		pq:                     pq,
+		log:                    log,
+		messageGroupID:         pipe.String(messageGroupID, ""),
+		attributes:             attr,
+		tags:                   tg,
+		skipDeclare:            pipe.Bool(skipQueueDeclaration, false),
+		queue:                  aws.String(pipe.String(queue, "default")),
+		visibilityTimeout:      int32(pipe.Int(visibility, 0)),             //nolint:gosec
+		errorVisibilityTimeout: int32(pipe.Int(errorVisibilityTimeout, 0)), //nolint:gosec
+		retainFailedJobs:       pipe.Bool(retainFailedJobs, false),
+		waitTime:               int32(pipe.Int(waitTime, 0)), //nolint:gosec
+		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
 		msgInFlightLimit: ptr(int32(pipe.Int(pref, 10))), //nolint:gosec
 		msgInFlight:      ptr(int64(0)),

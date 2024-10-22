@@ -30,7 +30,7 @@ jobs:
     test-1-pq:
       driver: sqs
       config:
-        prefetch: 1000
+        prefetch: 10
         visibility_timeout: 0
         wait_time_seconds: 0
         queue: default-1-pq
@@ -46,7 +46,7 @@ jobs:
     test-2-pq:
       driver: sqs
       config:
-        prefetch: 1000
+        prefetch: 10
         queue: default-2-pq
         attributes:
           MessageRetentionPeriod: 86400

@@ -31,7 +31,7 @@ jobs:
     test-1:
       driver: sqs
       config:
-        prefetch: 1000
+        prefetch: 10
         visibility_timeout: 0
         wait_time_seconds: 0
         message_group_id: 'RR'
@@ -49,7 +49,7 @@ jobs:
     test-2:
       driver: sqs
       config:
-        prefetch: 1000
+        prefetch: 10
         queue: default-2.fifo
         message_group_id: 'RR'
         attributes:
