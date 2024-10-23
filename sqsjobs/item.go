@@ -2,6 +2,7 @@ package sqsjobs
 
 import (
 	"context"
+	"log"
 	"maps"
 	"strconv"
 	"strings"
@@ -17,6 +18,8 @@ import (
 	"github.com/roadrunner-server/api/v4/plugins/v4/jobs"
 	"github.com/roadrunner-server/errors"
 	"go.uber.org/zap"
+
+	goErrors "errors"
 )
 
 const (
@@ -189,7 +192,13 @@ func CommonNack(i *Item) error {
 		})
 
 		if err != nil {
-			return err
+			var notInFlight *types.MessageNotInflight
+			if goErrors.As(err, &notInFlight) {
+				// I would like to log info/warning here, but not sure how to get the correct logger
+				log.Println("MessageNotInFlight; ignoring ChangeMessageVisibility")
+			} else {
+				return err
+			}
 		}
 	} // else dont do anything; wait for VisibilityTimeout to expire.
 
