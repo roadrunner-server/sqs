@@ -688,21 +688,21 @@ func TestSQSErrorVisibilityTimeout(t *testing.T) {
 	// Stop consuming messages
 	t.Run("PausePipeline", helpers.PausePipelines(address, pipe))
 
-	// Sleep for 70 seconds; wait for queue metadata to update (10+70)
-	// This takes at least 60 seconds.
+	// Sleep for another 110 seconds; wait for queue metadata to update (10+110 = 120s)
+	// Updating queue metadata takes "at least 60 seconds", so 120s is hopefully always enough.
 	// See https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_GetQueueAttributes.html
-	time.Sleep(time.Second * 70)
+	time.Sleep(time.Second * 110)
 
 	// Check that the queue has 4 messages and that they're all "reserved" ("in flight" on AWS SQS)
-	// During this, no messages are "active"
+	// During this, no messages are "active", as we are still within the 180s error timeout
 	out := &jobState.State{}
 	t.Run("StatsBeforeErrorVisibilityTimeout", helpers.Stats(address, out))
 	assert.Equal(t, int64(0), out.Active, "No messages must be available on the queue")
 	assert.Equal(t, int64(4), out.Reserved, "4 messages must be reserved on the queue")
 
-	// Sleep for another 40 seconds (visibility error delay is 90 in this test, so 70 + 10 + 40 == 120s)
+	// Sleep for another 90 seconds (visibility error delay is 180s in this test, so 10 + 110 + 90 == 210s or 1.5m)
 	// Sometimes these tests fail if we don't have large enough margins on delays
-	time.Sleep(time.Second * 40)
+	time.Sleep(time.Second * 90)
 	// Now the jobs should be visible again; check metadata for available (pipeline paused, so jobs are not consumed)
 	t.Run("StatsAfterErrorVisibilityTimeout", helpers.Stats(address, out))
 	assert.Equal(t, int64(4), out.Active, "4 messages must be available on the queue")

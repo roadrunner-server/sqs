@@ -32,4 +32,4 @@ jobs:
         wait_time_seconds: 0
         queue: default-error-timeout
         retain_failed_jobs: true
-        error_visibility_timeout: 90 # takes ~60s to get consistent metadata from queue for test
+        error_visibility_timeout: 120 # takes ~60s to get consistent metadata from queue for test, so we need a long timeout
