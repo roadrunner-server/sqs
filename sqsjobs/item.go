@@ -28,6 +28,7 @@ const (
 	BinaryType              string = "Binary"
 	ApproximateReceiveCount string = "ApproximateReceiveCount"
 	fifoSuffix              string = ".fifo"
+	jobAlreadyStopped       string = "Failed to acknowledge the job. The pipeline is probably stopped."
 )
 
 var _ jobs.Job = (*Item)(nil)
@@ -134,7 +135,7 @@ func (i *Item) Context() ([]byte, error) {
 
 func (i *Item) Ack() error {
 	if atomic.LoadUint64(i.Options.stopped) == 1 {
-		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
+		return errors.Str(jobAlreadyStopped)
 	}
 	defer func() {
 		i.Options.cond.Signal()
@@ -156,10 +157,7 @@ func (i *Item) Ack() error {
 	return nil
 }
 
-func CommonNack(i *Item) error {
-	if atomic.LoadUint64(i.Options.stopped) == 1 {
-		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
-	}
+func commonNack(i *Item) error {
 	defer func() {
 		i.Options.cond.Signal()
 		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
@@ -207,10 +205,16 @@ func CommonNack(i *Item) error {
 }
 
 func (i *Item) Nack() error {
-	return CommonNack(i)
+	if atomic.LoadUint64(i.Options.stopped) == 1 {
+		return errors.Str(jobAlreadyStopped)
+	}
+	return commonNack(i)
 }
 
 func (i *Item) NackWithOptions(requeue bool, delay int) error {
+	if atomic.LoadUint64(i.Options.stopped) == 1 {
+		return errors.Str(jobAlreadyStopped)
+	}
 	if requeue {
 		// requeue message
 		err := i.Requeue(nil, delay)
@@ -220,12 +224,12 @@ func (i *Item) NackWithOptions(requeue bool, delay int) error {
 
 		return nil
 	}
-	return CommonNack(i)
+	return commonNack(i)
 }
 
 func (i *Item) Requeue(headers map[string][]string, delay int) error {
 	if atomic.LoadUint64(i.Options.stopped) == 1 {
-		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
+		return errors.Str(jobAlreadyStopped)
 	}
 
 	defer func() {
