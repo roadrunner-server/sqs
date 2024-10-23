@@ -17,6 +17,7 @@ const (
 	messageGroupID         string = "message_group_id"
 	waitTime               string = "wait_time"
 	skipQueueDeclaration   string = "skip_queue_declaration"
+	maxVisibilityTimeout   int32  = 43200
 )
 
 // Config is used to parse pipeline configuration
@@ -37,17 +38,15 @@ type Config struct {
 	// retrieve requests after being retrieved by a ReceiveMessage request.
 	VisibilityTimeout int32 `mapstructure:"visibility_timeout"`
 
-	// If defined (> 0) RetainFailedJobs is true, instead of deleting the message, RR will change
-	// the visibility timeout and let the job be received again. This lets you retain the same job without relying
-	// on the requeue method, which in turn allows you to use the automatic dead-letter feature by setting a maximum
-	// receive count on your queue. This gives you similar behavior to Elastic Beanstalk's worker environments.
-	// If this is enabled, your driver credentials must have the `sqs:ChangeMessageVisibility` permission for the queue.
-	// This value *MUST* be lower than VisibilityTimeout. You must set RetainFailedJobs to true for this property
-	// to work.
+	// If defined (> 0) and RetainFailedJobs is true, RR will change the visibility timeout of failed jobs and let them
+	// be received again, instead of deleting and re-queueing them as new jobs. This allows you to use the automatic SQS
+	// dead-letter feature by setting a maximum receive count on your queue. This produces similar behavior to Elastic
+	// Beanstalk's worker environments.
+	// If this is enabled, your driver credentials must have the sqs:ChangeMessageVisibility permission for the queue.
 	ErrorVisibilityTimeout int32 `mapstructure:"error_visibility_timeout"`
 
-	// Whether to delete and requeue failed jobs from the queue. If you set this to true, jobs will be consumed by the
-	// workers again after VisibilityTimeout has passed, or ErrorVisibilityTimeout if set.
+	// Whether to retain failed jobs in the queue. If you set this to true, jobs will be consumed by the
+	// workers again after VisibilityTimeout, or ErrorVisibilityTimeout (if set), has passed.
 	// If this is false, jobs will be deleted from the queue and immediately queued again as new jobs.
 	// Defaults to false.
 	RetainFailedJobs bool `mapstructure:"retain_failed_jobs"`
@@ -139,6 +138,19 @@ func (c *Config) InitDefault() {
 
 	if c.WaitTimeSeconds == 0 {
 		c.WaitTimeSeconds = 5
+	}
+
+	// Make sure visibility timeouts are within the allowed boundaries.
+	if c.VisibilityTimeout < 0 {
+		c.VisibilityTimeout = 0
+	} else if c.VisibilityTimeout > maxVisibilityTimeout {
+		c.VisibilityTimeout = maxVisibilityTimeout
+	}
+
+	if c.ErrorVisibilityTimeout < 0 {
+		c.ErrorVisibilityTimeout = 0
+	} else if c.ErrorVisibilityTimeout > maxVisibilityTimeout {
+		c.ErrorVisibilityTimeout = maxVisibilityTimeout
 	}
 
 	if c.Attributes != nil {

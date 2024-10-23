@@ -61,7 +61,8 @@ type Options struct {
 	AutoAck bool `json:"auto_ack"`
 	// SQS Queue name
 	Queue string `json:"queue,omitempty"`
-	// If an error delay is set and RetainFailedJobs is true, the message visibility timeout to a lower value on NACK
+	// If RetainFailedJobs is true, failed jobs will have their visibility timeout set to this value instead of the
+	// default VisibilityTimeout.
 	ErrorVisibilityTimeout int32 `json:"error_visibility_timeout,omitempty"`
 	// Whether to retain failed jobs on the queue. If true, jobs will not be deleted and re-queued on NACK.
 	RetainFailedJobs bool `json:"retain_failed_jobs,omitempty"`
