@@ -610,7 +610,6 @@ func TestSQSErrorVisibilityTimeout(t *testing.T) {
 	}
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
-
 	err := cont.RegisterAll(
 		cfg,
 		&server.Plugin{},
