@@ -250,7 +250,7 @@
         }
       },
       "dependentRequired": {
-        "cert": [
+        "key": [
           "secret"
         ],
         "secret": [
