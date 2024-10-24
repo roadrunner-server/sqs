@@ -670,7 +670,7 @@ func TestSQSErrorVisibilityTimeout(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	address := "127.0.0.1:6010"
+	address := "127.0.0.1:6080"
 	pipe := "test-err-visibility"
 
 	// Push 4 jobs to pipeline; all will fail because PHP config nacks everything here
