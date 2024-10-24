@@ -7,14 +7,17 @@ import (
 )
 
 const (
-	attributes           string = "attributes"
-	tags                 string = "tags"
-	queue                string = "queue"
-	pref                 string = "prefetch"
-	visibility           string = "visibility_timeout"
-	messageGroupID       string = "message_group_id"
-	waitTime             string = "wait_time"
-	skipQueueDeclaration string = "skip_queue_declaration"
+	attributes             string = "attributes"
+	tags                   string = "tags"
+	queue                  string = "queue"
+	pref                   string = "prefetch"
+	visibility             string = "visibility_timeout"
+	errorVisibilityTimeout string = "error_visibility_timeout"
+	retainFailedJobs       string = "retain_failed_jobs"
+	messageGroupID         string = "message_group_id"
+	waitTime               string = "wait_time"
+	skipQueueDeclaration   string = "skip_queue_declaration"
+	maxVisibilityTimeout   int32  = 43200
 )
 
 // Config is used to parse pipeline configuration
@@ -34,15 +37,31 @@ type Config struct {
 	// The duration (in seconds) that the received messages are hidden from subsequent
 	// retrieve requests after being retrieved by a ReceiveMessage request.
 	VisibilityTimeout int32 `mapstructure:"visibility_timeout"`
+
+	// If defined (> 0) and RetainFailedJobs is true, RR will change the visibility timeout of failed jobs and let them
+	// be received again, instead of deleting and re-queueing them as new jobs. This allows you to use the automatic SQS
+	// dead-letter feature by setting a maximum receive count on your queue. This produces similar behavior to Elastic
+	// Beanstalk's worker environments.
+	// If this is enabled, your driver credentials must have the sqs:ChangeMessageVisibility permission for the queue.
+	ErrorVisibilityTimeout int32 `mapstructure:"error_visibility_timeout"`
+
+	// Whether to retain failed jobs in the queue. If you set this to true, jobs will be consumed by the
+	// workers again after VisibilityTimeout, or ErrorVisibilityTimeout (if set), has passed.
+	// If this is false, jobs will be deleted from the queue and immediately queued again as new jobs.
+	// Defaults to false.
+	RetainFailedJobs bool `mapstructure:"retain_failed_jobs"`
+
 	// The duration (in seconds) for which the call waits for a message to arrive
 	// in the queue before returning. If a message is available, the call returns
 	// sooner than WaitTimeSeconds. If no messages are available and the wait time
 	// expires, the call returns successfully with an empty list of messages.
 	WaitTimeSeconds int32 `mapstructure:"wait_time_seconds"`
+
 	// Prefetch is the maximum number of messages to return. Amazon SQS never returns more messages
 	// than this value (however, fewer messages might be returned). Valid values: 1 to
 	// 10. Default: 1.
 	Prefetch int32 `mapstructure:"prefetch"`
+
 	// The name of the new queue. The following limits apply to this name:
 	//
 	// * A queue
@@ -119,6 +138,19 @@ func (c *Config) InitDefault() {
 
 	if c.WaitTimeSeconds == 0 {
 		c.WaitTimeSeconds = 5
+	}
+
+	// Make sure visibility timeouts are within the allowed boundaries.
+	if c.VisibilityTimeout < 0 {
+		c.VisibilityTimeout = 0
+	} else if c.VisibilityTimeout > maxVisibilityTimeout {
+		c.VisibilityTimeout = maxVisibilityTimeout
+	}
+
+	if c.ErrorVisibilityTimeout < 0 {
+		c.ErrorVisibilityTimeout = 0
+	} else if c.ErrorVisibilityTimeout > maxVisibilityTimeout {
+		c.ErrorVisibilityTimeout = maxVisibilityTimeout
 	}
 
 	if c.Attributes != nil {

@@ -5,7 +5,7 @@ receivers:
       http:
 
 exporters:
-  logging:
+  debug:
     loglevel: debug
   zipkin:
     endpoint: "http://zipkin:9411/api/v2/spans"
@@ -14,4 +14,4 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [zipkin, logging]
+      exporters: [zipkin, debug]

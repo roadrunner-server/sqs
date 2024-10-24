@@ -34,7 +34,7 @@ jobs:
       config:
         consume_all: true
         skip_queue_declaration: true
-        prefetch: 1000
+        prefetch: 10
         visibility_timeout: 0
         wait_time_seconds: 0
         queue: resp-queue

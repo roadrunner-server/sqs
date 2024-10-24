@@ -17,6 +17,8 @@ import (
 	"github.com/roadrunner-server/api/v4/plugins/v4/jobs"
 	"github.com/roadrunner-server/errors"
 	"go.uber.org/zap"
+
+	stderr "errors"
 )
 
 const (
@@ -25,6 +27,7 @@ const (
 	BinaryType              string = "Binary"
 	ApproximateReceiveCount string = "ApproximateReceiveCount"
 	fifoSuffix              string = ".fifo"
+	pipelineStoppedError    string = "Failed to ACK/NACK or requeue the job. The pipeline is probably stopped."
 )
 
 var _ jobs.Job = (*Item)(nil)
@@ -58,6 +61,11 @@ type Options struct {
 	AutoAck bool `json:"auto_ack"`
 	// SQS Queue name
 	Queue string `json:"queue,omitempty"`
+	// If RetainFailedJobs is true, failed jobs will have their visibility timeout set to this value instead of the
+	// default VisibilityTimeout.
+	ErrorVisibilityTimeout int32 `json:"error_visibility_timeout,omitempty"`
+	// Whether to retain failed jobs on the queue. If true, jobs will not be deleted and re-queued on NACK.
+	RetainFailedJobs bool `json:"retain_failed_jobs,omitempty"`
 
 	// Private ================
 	cond               *sync.Cond
@@ -126,7 +134,7 @@ func (i *Item) Context() ([]byte, error) {
 
 func (i *Item) Ack() error {
 	if atomic.LoadUint64(i.Options.stopped) == 1 {
-		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
+		return errors.Str(pipelineStoppedError)
 	}
 	defer func() {
 		i.Options.cond.Signal()
@@ -148,9 +156,9 @@ func (i *Item) Ack() error {
 	return nil
 }
 
-func (i *Item) Nack() error {
+func (i *Item) commonNack(requeue bool, delay int) error {
 	if atomic.LoadUint64(i.Options.stopped) == 1 {
-		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
+		return errors.Str(pipelineStoppedError)
 	}
 	defer func() {
 		i.Options.cond.Signal()
@@ -160,37 +168,6 @@ func (i *Item) Nack() error {
 	if i.Options.AutoAck {
 		return nil
 	}
-
-	// requeue message
-	err := i.Options.requeueFn(context.Background(), i)
-	if err != nil {
-		return err
-	}
-
-	_, err = i.Options.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
-		QueueUrl:      i.Options.queue,
-		ReceiptHandle: i.Options.receiptHandler,
-	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (i *Item) NackWithOptions(requeue bool, delay int) error {
-	if atomic.LoadUint64(i.Options.stopped) == 1 {
-		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
-	}
-
-	// message already deleted
-	if i.Options.AutoAck {
-		i.Options.cond.Signal()
-		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
-		return nil
-	}
-
 	if requeue {
 		// requeue message
 		err := i.Requeue(nil, delay)
@@ -200,26 +177,57 @@ func (i *Item) NackWithOptions(requeue bool, delay int) error {
 
 		return nil
 	}
+	switch {
+	case !i.Options.RetainFailedJobs:
+		// requeue as new message
+		err := i.Options.requeueFn(context.Background(), i)
+		if err != nil {
+			return err
+		}
+		// Delete original message
+		_, err = i.Options.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
+			QueueUrl:      i.Options.queue,
+			ReceiptHandle: i.Options.receiptHandler,
+		})
 
-	_, err := i.Options.client.DeleteMessage(context.Background(), &sqs.DeleteMessageInput{
-		QueueUrl:      i.Options.queue,
-		ReceiptHandle: i.Options.receiptHandler,
-	})
+		if err != nil {
+			return err
+		}
+	case i.Options.ErrorVisibilityTimeout > 0:
+		// If error visibility is defined change the visibility timeout of the job that failed
+		_, err := i.Options.client.ChangeMessageVisibility(context.Background(), &sqs.ChangeMessageVisibilityInput{
+			QueueUrl:          i.Options.queue,
+			ReceiptHandle:     i.Options.receiptHandler,
+			VisibilityTimeout: i.Options.ErrorVisibilityTimeout,
+		})
 
-	if err != nil {
-		i.Options.cond.Signal()
-		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
-		return err
+		if err != nil {
+			var notInFlight *types.MessageNotInflight
+			// We ignore this error. If the message is not in flight, we cannot change the visibility. This may happen
+			// if processing takes longer than the timeout for the message, and no other works pick it up. Should be
+			// very rare though.
+			if !stderr.As(err, &notInFlight) {
+				return err
+			}
+		}
+	default:
+		// dont do anything; wait for VisibilityTimeout to expire.
 	}
 
-	i.Options.cond.Signal()
-	atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
 	return nil
+}
+
+func (i *Item) Nack() error {
+	return i.commonNack(false, 0)
+}
+
+func (i *Item) NackWithOptions(requeue bool, delay int) error {
+	return i.commonNack(requeue, delay)
 }
 
 func (i *Item) Requeue(headers map[string][]string, delay int) error {
 	if atomic.LoadUint64(i.Options.stopped) == 1 {
-		return errors.Str("failed to acknowledge the JOB, the pipeline is probably stopped")
+		return errors.Str(pipelineStoppedError)
 	}
 
 	defer func() {
@@ -368,11 +376,13 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 		Payload: []byte(getordefault(msg.Body)),
 		headers: h,
 		Options: &Options{
-			AutoAck:  autoAck,
-			Delay:    dl,
-			Priority: int64(priority),
-			Pipeline: (*c.pipeline.Load()).Name(),
-			Queue:    getordefault(c.queue),
+			AutoAck:                autoAck,
+			Delay:                  dl,
+			Priority:               int64(priority),
+			Pipeline:               (*c.pipeline.Load()).Name(),
+			Queue:                  getordefault(c.queue),
+			ErrorVisibilityTimeout: c.errorVisibilityTimeout,
+			RetainFailedJobs:       c.retainFailedJobs,
 
 			// private
 			approxReceiveCount: recCount,
