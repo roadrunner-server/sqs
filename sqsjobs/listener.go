@@ -31,16 +31,15 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 				c.log.Debug("sqs listener was stopped")
 				return
 			default:
-				var receiveInput = &sqs.ReceiveMessageInput{
+
+				message, err := c.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 					QueueUrl:                    c.queueURL,
 					MaxNumberOfMessages:         c.prefetch,
 					MessageSystemAttributeNames: []types.MessageSystemAttributeName{types.MessageSystemAttributeName(All)},
 					MessageAttributeNames:       []string{All},
 					VisibilityTimeout:           c.visibilityTimeout,
 					WaitTimeSeconds:             c.waitTime,
-				}
-
-				message, err := c.client.ReceiveMessage(ctx, receiveInput)
+				})
 
 				if err != nil { //nolint:nestif
 					var oErr *smithy.OperationError
