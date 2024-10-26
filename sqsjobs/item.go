@@ -68,14 +68,13 @@ type Options struct {
 	RetainFailedJobs bool `json:"retain_failed_jobs,omitempty"`
 
 	// Private ================
-	cond               *sync.Cond
-	stopped            *uint64
-	msgInFlight        *int64
-	approxReceiveCount int64
-	queue              *string
-	receiptHandler     *string
-	client             *sqs.Client
-	requeueFn          RequeueFn
+	cond           *sync.Cond
+	stopped        *uint64
+	msgInFlight    *int64
+	queue          *string
+	receiptHandler *string
+	client         *sqs.Client
+	requeueFn      RequeueFn
 }
 
 // DelayDuration returns delay duration in the form of time.Duration.
@@ -308,18 +307,6 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 }
 
 func (c *Driver) unpack(msg *types.Message) *Item {
-	// reserved
-	var recCount int64
-	if _, ok := msg.Attributes[ApproximateReceiveCount]; !ok {
-		c.log.Debug("failed to unpack the ApproximateReceiveCount attribute, using -1 as a fallback")
-	} else {
-		tmp, err := strconv.Atoi(msg.Attributes[ApproximateReceiveCount])
-		if err != nil {
-			c.log.Warn("failed to unpack the ApproximateReceiveCount attribute, using -1 as a fallback", zap.Error(err))
-		}
-		recCount = int64(tmp)
-	}
-
 	h := make(map[string][]string)
 	if _, ok := msg.MessageAttributes[jobs.RRHeaders]; ok {
 		err := json.Unmarshal(msg.MessageAttributes[jobs.RRHeaders].BinaryValue, &h)
@@ -385,11 +372,10 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 			RetainFailedJobs:       c.retainFailedJobs,
 
 			// private
-			approxReceiveCount: recCount,
-			client:             c.client,
-			queue:              c.queueURL,
-			receiptHandler:     msg.ReceiptHandle,
-			requeueFn:          c.handleItem,
+			client:         c.client,
+			queue:          c.queueURL,
+			receiptHandler: msg.ReceiptHandle,
+			requeueFn:      c.handleItem,
 			// 2.12.1
 			msgInFlight: c.msgInFlight,
 			cond:        &c.cond,

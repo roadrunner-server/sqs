@@ -17,10 +17,8 @@ import (
 const (
 	// All - get all message attribute names
 	All string = "All"
-
 	// NonExistentQueue AWS error code
 	NonExistentQueue string = "AWS.SimpleQueueService.NonExistentQueue"
-
 	// consume all
 	auto string = "deduced_by_rr"
 )
@@ -36,7 +34,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 				message, err := c.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 					QueueUrl:                    c.queueURL,
 					MaxNumberOfMessages:         10,
-					MessageSystemAttributeNames: []types.MessageSystemAttributeName{types.MessageSystemAttributeName(ApproximateReceiveCount)},
+					MessageSystemAttributeNames: []types.MessageSystemAttributeName{types.MessageSystemAttributeName(All)},
 					MessageAttributeNames:       []string{All},
 					// The new value for the message's visibility timeout (in seconds). Values range: 0
 					// to 43200. Maximum: 12 hours.
@@ -112,6 +110,10 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 
 					if item.headers == nil {
 						item.headers = make(map[string][]string, 2)
+					}
+
+					for k, v := range m.Attributes {
+						item.headers[k] = []string{v}
 					}
 
 					c.prop.Inject(ctxspan, propagation.HeaderCarrier(item.headers))
