@@ -36,13 +36,10 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 					MaxNumberOfMessages:         c.prefetch,
 					MessageSystemAttributeNames: []types.MessageSystemAttributeName{types.MessageSystemAttributeName(All)},
 					MessageAttributeNames:       []string{All},
+					VisibilityTimeout:           c.visibilityTimeout,
+					WaitTimeSeconds:             c.waitTime,
 				}
-				if c.visibilityTimeout != nil {
-					receiveInput.VisibilityTimeout = *c.visibilityTimeout
-				}
-				if c.waitTime != nil {
-					receiveInput.WaitTimeSeconds = *c.waitTime
-				}
+
 				message, err := c.client.ReceiveMessage(ctx, receiveInput)
 
 				if err != nil { //nolint:nestif
@@ -115,6 +112,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 						item.headers = make(map[string][]string, 2)
 					}
 
+					// copy all system attributes to the headers which would be used in the PHP Headers
 					for k, v := range m.Attributes {
 						item.headers[k] = []string{v}
 					}

@@ -60,8 +60,8 @@ type Driver struct {
 	// connection info
 	queue                  *string
 	messageGroupID         string
-	waitTime               *int32
-	visibilityTimeout      *int32
+	waitTime               int32
+	visibilityTimeout      int32
 	errorVisibilityTimeout int32
 	prefetch               int32
 	retainFailedJobs       bool
@@ -199,12 +199,6 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		return nil, errors.E(op, err)
 	}
 
-	visibility := int32(pipe.Int(visibility, 0)) //nolint:gosec
-	var visibilityP = &visibility
-
-	waitTime := int32(pipe.Int(waitTime, 0)) //nolint:gosec
-	var waitTimeP = &waitTime
-
 	// initialize job Driver
 	jb := &Driver{
 		tracer:                 tracer,
@@ -217,10 +211,10 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		tags:                   tg,
 		skipDeclare:            pipe.Bool(skipQueueDeclaration, false),
 		queue:                  aws.String(pipe.String(queue, "default")),
-		visibilityTimeout:      visibilityP,
+		visibilityTimeout:      int32(pipe.Int(visibility, 0)),             //nolint:gosec
 		errorVisibilityTimeout: int32(pipe.Int(errorVisibilityTimeout, 0)), //nolint:gosec
 		retainFailedJobs:       pipe.Bool(retainFailedJobs, false),
-		waitTime:               waitTimeP,
+		waitTime:               int32(pipe.Int(waitTime, 0)),  //nolint:gosec
 		prefetch:               int32(pipe.Int(prefetch, 10)), //nolint:gosec
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
