@@ -24,19 +24,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/goccy/go-json"
 	jobsProto "github.com/roadrunner-server/api/v4/build/jobs/v1"
 	jobState "github.com/roadrunner-server/api/v4/plugins/v4/jobs"
-	"github.com/roadrunner-server/config/v5"
-	"github.com/roadrunner-server/endure/v2"
 	goridgeRpc "github.com/roadrunner-server/goridge/v3/pkg/rpc"
-	"github.com/roadrunner-server/informer/v5"
-	"github.com/roadrunner-server/jobs/v5"
-	"github.com/roadrunner-server/logger/v5"
-	"github.com/roadrunner-server/otel/v5"
-	"github.com/roadrunner-server/resetter/v5"
 	rpcPlugin "github.com/roadrunner-server/rpc/v5"
-	"github.com/roadrunner-server/server/v5"
 	sqsPlugin "github.com/roadrunner-server/sqs/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -599,6 +590,96 @@ func TestSQSJobsError(t *testing.T) {
 	wg.Wait()
 
 	time.Sleep(time.Second * 5)
+}
+
+func TestSQSApproximateReceiveCount(t *testing.T) {
+	cont := endure.New(slog.LevelDebug)
+
+	cfg := &config.Plugin{
+		Version: "2023.3.0",
+		Path:    "configs/.rr-sqs-read-approximate-count.yaml",
+	}
+
+	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	err := cont.RegisterAll(
+		cfg,
+		&server.Plugin{},
+		&rpcPlugin.Plugin{},
+		l,
+		&logger.Plugin{},
+		&jobs.Plugin{},
+		&resetter.Plugin{},
+		&informer.Plugin{},
+		&sqsPlugin.Plugin{},
+	)
+	assert.NoError(t, err)
+
+	err = cont.Init()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ch, err := cont.Serve()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	stopCh := make(chan struct{}, 1)
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case e := <-ch:
+				assert.Fail(t, "error", e.Error.Error())
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+			case <-sig:
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+				return
+			case <-stopCh:
+				// timeout
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+				return
+			}
+		}
+	}()
+
+	time.Sleep(time.Second * 3)
+
+	address := "127.0.0.1:6081"
+	pipe := "test-err-approx-count"
+
+	// Push a job to the pipeline, wait for it to be consumed 4 times, which should take ~30
+	// In these 30 seconds, it should post Receive count: n for each attempt.
+	t.Run("PushPipeline", helpers.PushToPipe(pipe, false, address))
+
+	// 3s grace period
+	time.Sleep(time.Second * 33)
+
+	// Stop consuming messages
+	t.Run("PausePipeline", helpers.PausePipelines(address, pipe))
+
+	// Ensure that we can find a message saying the job was received 4 times after ~30s
+	// First receive is at 0 seconds, second at ~10, third at ~20 and fourth at ~30
+	assert.Equal(t, 1, oLogger.FilterMessageSnippet("Receive count: 4").Len())
+
+	stopCh <- struct{}{}
+	wg.Wait()
 }
 
 func TestSQSErrorVisibilityTimeout(t *testing.T) {
