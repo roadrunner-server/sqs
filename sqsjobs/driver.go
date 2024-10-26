@@ -214,8 +214,8 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		visibilityTimeout:      int32(pipe.Int(visibility, 0)),             //nolint:gosec
 		errorVisibilityTimeout: int32(pipe.Int(errorVisibilityTimeout, 0)), //nolint:gosec
 		retainFailedJobs:       pipe.Bool(retainFailedJobs, false),
-		waitTime:               int32(pipe.Int(waitTime, 0)),  //nolint:gosec
-		prefetch:               int32(pipe.Int(prefetch, 10)), //nolint:gosec
+		waitTime:               int32(pipe.Int(waitTime, 0)), //nolint:gosec
+		prefetch:               int32(pipe.Int(prefetch, 0)), //nolint:gosec
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
 		msgInFlightLimit: ptr(int32(pipe.Int(pref, 10))), //nolint:gosec
