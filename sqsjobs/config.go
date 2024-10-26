@@ -14,10 +14,12 @@ const (
 	visibility             string = "visibility_timeout"
 	errorVisibilityTimeout string = "error_visibility_timeout"
 	retainFailedJobs       string = "retain_failed_jobs"
+	prefetch               string = "prefetch"
 	messageGroupID         string = "message_group_id"
 	waitTime               string = "wait_time"
 	skipQueueDeclaration   string = "skip_queue_declaration"
 	maxVisibilityTimeout   int32  = 43200
+	maxWaitTime            int32  = 20
 )
 
 // Config is used to parse pipeline configuration
@@ -36,7 +38,7 @@ type Config struct {
 
 	// The duration (in seconds) that the received messages are hidden from subsequent
 	// retrieve requests after being retrieved by a ReceiveMessage request.
-	VisibilityTimeout int32 `mapstructure:"visibility_timeout"`
+	VisibilityTimeout *int32 `mapstructure:"visibility_timeout"`
 
 	// If defined (> 0) and RetainFailedJobs is true, RR will change the visibility timeout of failed jobs and let them
 	// be received again, instead of deleting and re-queueing them as new jobs. This allows you to use the automatic SQS
@@ -55,7 +57,7 @@ type Config struct {
 	// in the queue before returning. If a message is available, the call returns
 	// sooner than WaitTimeSeconds. If no messages are available and the wait time
 	// expires, the call returns successfully with an empty list of messages.
-	WaitTimeSeconds int32 `mapstructure:"wait_time_seconds"`
+	WaitTimeSeconds *int32 `mapstructure:"wait_time_seconds"`
 
 	// Prefetch is the maximum number of messages to return. Amazon SQS never returns more messages
 	// than this value (however, fewer messages might be returned). Valid values: 1 to
@@ -132,19 +134,25 @@ func (c *Config) InitDefault() {
 		c.Queue = aws.String("default")
 	}
 
-	if c.Prefetch == 0 {
+	if c.Prefetch <= 0 || c.Prefetch > 10 {
 		c.Prefetch = 10
 	}
 
-	if c.WaitTimeSeconds == 0 {
-		c.WaitTimeSeconds = 5
+	if c.WaitTimeSeconds != nil {
+		if *c.WaitTimeSeconds < 0 {
+			*c.WaitTimeSeconds = 0
+		} else if *c.WaitTimeSeconds > maxWaitTime {
+			*c.WaitTimeSeconds = maxWaitTime
+		}
 	}
 
 	// Make sure visibility timeouts are within the allowed boundaries.
-	if c.VisibilityTimeout < 0 {
-		c.VisibilityTimeout = 0
-	} else if c.VisibilityTimeout > maxVisibilityTimeout {
-		c.VisibilityTimeout = maxVisibilityTimeout
+	if c.VisibilityTimeout != nil {
+		if *c.VisibilityTimeout < 0 {
+			*c.VisibilityTimeout = 0
+		} else if *c.VisibilityTimeout > maxVisibilityTimeout {
+			*c.VisibilityTimeout = maxVisibilityTimeout
+		}
 	}
 
 	if c.ErrorVisibilityTimeout < 0 {

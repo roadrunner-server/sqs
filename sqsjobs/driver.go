@@ -60,9 +60,10 @@ type Driver struct {
 	// connection info
 	queue                  *string
 	messageGroupID         string
-	waitTime               int32
-	visibilityTimeout      int32
+	waitTime               *int32
+	visibilityTimeout      *int32
 	errorVisibilityTimeout int32
+	prefetch               int32
 	retainFailedJobs       bool
 
 	// if a user invokes several resume operations
@@ -129,6 +130,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 		errorVisibilityTimeout: conf.ErrorVisibilityTimeout,
 		retainFailedJobs:       conf.RetainFailedJobs,
 		waitTime:               conf.WaitTimeSeconds,
+		prefetch:               conf.Prefetch,
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
 		msgInFlightLimit: ptr(conf.Prefetch),
@@ -197,6 +199,12 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		return nil, errors.E(op, err)
 	}
 
+	visibility := int32(pipe.Int(visibility, 0)) //nolint:gosec
+	var visibilityP = &visibility
+
+	waitTime := int32(pipe.Int(waitTime, 0)) //nolint:gosec
+	var waitTimeP = &waitTime
+
 	// initialize job Driver
 	jb := &Driver{
 		tracer:                 tracer,
@@ -209,10 +217,11 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		tags:                   tg,
 		skipDeclare:            pipe.Bool(skipQueueDeclaration, false),
 		queue:                  aws.String(pipe.String(queue, "default")),
-		visibilityTimeout:      int32(pipe.Int(visibility, 0)),             //nolint:gosec
+		visibilityTimeout:      visibilityP,
 		errorVisibilityTimeout: int32(pipe.Int(errorVisibilityTimeout, 0)), //nolint:gosec
 		retainFailedJobs:       pipe.Bool(retainFailedJobs, false),
-		waitTime:               int32(pipe.Int(waitTime, 0)), //nolint:gosec
+		waitTime:               waitTimeP,
+		prefetch:               int32(pipe.Int(prefetch, 10)), //nolint:gosec
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
 		msgInFlightLimit: ptr(int32(pipe.Int(pref, 10))), //nolint:gosec
