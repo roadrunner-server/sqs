@@ -25,7 +25,7 @@ jobs:
     test-err-approx-count:
       driver: sqs
       config:
-        prefetch: 1
+        prefetch: 10
         visibility_timeout: 900 # maximum for sqs
         wait_time_seconds: 0
         queue: default
