@@ -34,7 +34,7 @@ jobs:
       config:
         prefetch: 10
         visibility_timeout: 0
-        wait_time_seconds: 0
+        wait_time_seconds: 10
         queue: default
         attributes:
           DelaySeconds: 0

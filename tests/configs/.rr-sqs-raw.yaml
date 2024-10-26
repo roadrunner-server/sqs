@@ -36,7 +36,7 @@ jobs:
         skip_queue_declaration: true
         prefetch: 10
         visibility_timeout: 0
-        wait_time_seconds: 0
+        wait_time_seconds: 10
         queue: resp-queue
         attributes:
           DelaySeconds: 0

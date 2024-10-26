@@ -35,7 +35,7 @@ jobs:
       config:
         prefetch: 10
         visibility_timeout: 0
-        wait_time_seconds: 1
+        wait_time_seconds: 10
         queue: default
         attributes:
           DelaySeconds: 0
@@ -51,7 +51,7 @@ jobs:
       config:
         prefetch: 10
         queue: default-2
-        wait_time_seconds: 1
+        wait_time_seconds: 10
         attributes:
           MessageRetentionPeriod: 86400
         tags:

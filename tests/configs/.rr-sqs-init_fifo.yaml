@@ -33,7 +33,7 @@ jobs:
       config:
         prefetch: 10
         visibility_timeout: 0
-        wait_time_seconds: 0
+        wait_time_seconds: 10
         message_group_id: 'RR'
         queue: default.fifo
         attributes:

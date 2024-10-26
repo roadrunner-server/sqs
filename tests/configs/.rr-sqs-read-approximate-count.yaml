@@ -27,7 +27,7 @@ jobs:
       config:
         prefetch: 10
         visibility_timeout: 900 # maximum for sqs
-        wait_time_seconds: 0
+        wait_time_seconds: 10
         queue: default
         retain_failed_jobs: true
         error_visibility_timeout: 10
