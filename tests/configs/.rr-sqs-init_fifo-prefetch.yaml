@@ -5,8 +5,6 @@ rpc:
 
 server:
   command: "php php_test_files/jobs/jobs_ok_sleep1.php"
-  relay: "pipes"
-  relay_timeout: "20s"
 
 sqs: { }
 
@@ -16,10 +14,8 @@ logs:
   mode: development
 
 jobs:
-  pipeline_size: 100000
   pool:
     num_workers: 1
-    allocate_timeout: 60s
     destroy_timeout: 2s
 
   pipelines:
