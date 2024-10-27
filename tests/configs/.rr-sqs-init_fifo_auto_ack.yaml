@@ -1,7 +1,7 @@
 version: '3'
 
 rpc:
-  listen: tcp://127.0.0.1:6001
+  listen: tcp://127.0.0.1:6451
 
 server:
   command: "php php_test_files/jobs/jobs_ok.php"
@@ -18,8 +18,7 @@ logs:
 jobs:
   pipeline_size: 100000
   pool:
-    num_workers: 10
-    max_jobs: 0
+    num_workers: 2
     allocate_timeout: 60s
     destroy_timeout: 60s
 
@@ -29,7 +28,10 @@ jobs:
       config:
         prefetch: 10
         wait_time_seconds: 10
-        queue: sqs-init-1
+        message_group_id: 'RR'
+        queue: sqs-init-1-auto-ack.fifo # must end with .fifo!
+        attributes:
+          FifoQueue: 'true'
         tags:
           test: "tag"
 
@@ -37,7 +39,10 @@ jobs:
       driver: sqs
       config:
         prefetch: 10
-        queue: sqs-init-2
+        queue: sqs-init-2-auto-ack.fifo
+        message_group_id: 'RR'
+        attributes:
+          FifoQueue: 'true'
         tags:
           test: "tag"
   consume: [ "test-1", "test-2" ]

@@ -2,12 +2,20 @@ package helpers
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"net"
 	"net/http"
 	"net/rpc"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	sqsConf "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/google/uuid"
 	jobsProto "github.com/roadrunner-server/api/v4/build/jobs/v1"
 	jobState "github.com/roadrunner-server/api/v4/plugins/v4/jobs"
@@ -23,6 +31,32 @@ const (
 	resume  string = "jobs.Resume"
 	stat    string = "jobs.Stat"
 )
+
+func DeleteQueues(t *testing.T, queueNames ...string) {
+
+	awsConf, err := sqsConf.LoadDefaultConfig(context.Background(),
+		sqsConf.WithBaseEndpoint(os.Getenv("RR_SQS_TEST_ENDPOINT")),
+		sqsConf.WithRegion(os.Getenv("RR_SQS_TEST_REGION")),
+		sqsConf.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(os.Getenv("RR_SQS_TEST_KEY"),
+			os.Getenv("RR_SQS_TEST_SECRET"), "")))
+	require.NoError(t, err)
+
+	client := sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
+		o.Retryer = retry.NewStandard(func(so *retry.StandardOptions) {
+			so.MaxAttempts = 2
+		})
+	})
+
+	for _, queueName := range queueNames {
+		_, err := client.DeleteQueue(context.Background(), &sqs.DeleteQueueInput{
+			QueueUrl: aws.String(fmt.Sprintf("%s/%s/%s", os.Getenv("RR_SQS_TEST_ENDPOINT"),
+				os.Getenv("RR_SQS_TEST_ACCOUNT_ID"),
+				queueName)),
+		})
+		assert.NoError(t, err)
+	}
+
+}
 
 func ResumePipes(address string, pipes ...string) func(t *testing.T) {
 	return func(t *testing.T) {

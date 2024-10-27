@@ -8,11 +8,7 @@ server:
   relay: "pipes"
   relay_timeout: "20s"
 
-sqs:
-  key: api-key
-  secret: api-secret
-  region: us-west-1
-  endpoint: http://127.0.0.1:9324
+sqs: { }
 
 logs:
   level: debug
@@ -20,7 +16,6 @@ logs:
   mode: development
 
 jobs:
-  num_pollers: 2
   pipeline_size: 100000
   pool:
     num_workers: 2
@@ -32,17 +27,11 @@ jobs:
       driver: sqs
       config:
         prefetch: 10
-        visibility_timeout: 0
         wait_time_seconds: 10
         message_group_id: 'RR'
-        queue: default.fifo
+        queue: sqs-init-1.fifo # must end with .fifo!
         attributes:
           FifoQueue: 'true'
-          DelaySeconds: 0
-          MaximumMessageSize: 262144
-          MessageRetentionPeriod: 345600
-          ReceiveMessageWaitTimeSeconds: 0
-          VisibilityTimeout: 30
         tags:
           test: "tag"
 
@@ -50,11 +39,10 @@ jobs:
       driver: sqs
       config:
         prefetch: 10
-        queue: default-2.fifo
+        queue: sqs-init-2.fifo
         message_group_id: 'RR'
         attributes:
           FifoQueue: 'true'
-          MessageRetentionPeriod: 86400
         tags:
           test: "tag"
   consume: [ "test-1", "test-2" ]

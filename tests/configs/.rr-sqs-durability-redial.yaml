@@ -8,11 +8,7 @@ server:
   relay: "pipes"
   relay_timeout: "20s"
 
-sqs:
-  key: api-key
-  secret: api-secret
-  region: us-west-1
-  endpoint: http://127.0.0.1:19324
+sqs: { }
 
 logs:
   level: debug
@@ -34,14 +30,9 @@ jobs:
       driver: sqs
       config:
         prefetch: 10
-        visibility_timeout: 0
         wait_time_seconds: 10
-        queue: default
+        queue: sqs-durability-redial-1
         attributes:
-          DelaySeconds: 0
-          MaximumMessageSize: 262144
-          MessageRetentionPeriod: 345600
-          ReceiveMessageWaitTimeSeconds: 0
           VisibilityTimeout: 0
         tags:
           test: "tag"
@@ -50,10 +41,8 @@ jobs:
       driver: sqs
       config:
         prefetch: 10
-        queue: default-2
+        queue: sqs-durability-redial-2
         wait_time_seconds: 10
-        attributes:
-          MessageRetentionPeriod: 86400
         tags:
           test: "tag"
 
