@@ -1,6 +1,12 @@
 name: sqs_durability
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
 
 jobs:
   sqs_durability_test:
