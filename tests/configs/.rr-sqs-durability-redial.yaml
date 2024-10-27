@@ -8,7 +8,11 @@ server:
   relay: "pipes"
   relay_timeout: "20s"
 
-sqs: { }
+sqs:
+  key: api-key
+  secret: api-secret
+  region: us-west-1
+  endpoint: http://127.0.0.1:19324
 
 logs:
   level: debug
@@ -16,7 +20,6 @@ logs:
   mode: development
 
 jobs:
-  num_pollers: 10
   pipeline_size: 100000
   pool:
     num_workers: 10
