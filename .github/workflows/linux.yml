@@ -69,7 +69,7 @@ jobs:
           RR_SQS_TEST_REGION: ${{ secrets.RR_SQS_TEST_REGION }}
           RR_SQS_TEST_KEY: ${{ secrets.RR_SQS_TEST_KEY }}
           RR_SQS_TEST_SECRET: ${{ secrets.RR_SQS_TEST_SECRET }}
-          RR_SQS_TEST_ACCOUNT_ID: "569200086642" # todo, replace with secret
+          RR_SQS_TEST_ACCOUNT_ID: ${{ secrets.RR_SQS_TEST_ACCOUNT_ID }}
         run: |
           cd tests
           mkdir ./coverage-ci

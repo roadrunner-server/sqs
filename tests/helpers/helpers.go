@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"net"
 	"net/http"
 	"net/rpc"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	sqsConf "github.com/aws/aws-sdk-go-v2/config"
@@ -33,8 +34,11 @@ const (
 )
 
 func DeleteQueues(t *testing.T, queueNames ...string) {
+	// should not be more than 1 minute
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 
-	awsConf, err := sqsConf.LoadDefaultConfig(context.Background(),
+	awsConf, err := sqsConf.LoadDefaultConfig(ctx,
 		sqsConf.WithBaseEndpoint(os.Getenv("RR_SQS_TEST_ENDPOINT")),
 		sqsConf.WithRegion(os.Getenv("RR_SQS_TEST_REGION")),
 		sqsConf.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(os.Getenv("RR_SQS_TEST_KEY"),
@@ -48,14 +52,16 @@ func DeleteQueues(t *testing.T, queueNames ...string) {
 	})
 
 	for _, queueName := range queueNames {
-		_, err := client.DeleteQueue(context.Background(), &sqs.DeleteQueueInput{
-			QueueUrl: aws.String(fmt.Sprintf("%s/%s/%s", os.Getenv("RR_SQS_TEST_ENDPOINT"),
+		_, err := client.DeleteQueue(ctx, &sqs.DeleteQueueInput{
+			QueueUrl: aws.String(fmt.Sprintf("%s/%s/%s",
+				os.Getenv("RR_SQS_TEST_ENDPOINT"),
 				os.Getenv("RR_SQS_TEST_ACCOUNT_ID"),
-				queueName)),
+				queueName),
+			),
 		})
+
 		assert.NoError(t, err)
 	}
-
 }
 
 func ResumePipes(address string, pipes ...string) func(t *testing.T) {
