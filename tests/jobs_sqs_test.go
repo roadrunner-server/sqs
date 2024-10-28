@@ -283,14 +283,18 @@ func TestSQSAutoAck(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 	t.Run("PushPipeline", helpers.PushToPipe("test-1", true, "127.0.0.1:6001"))
+	t.Run("PushPipeline", helpers.PushToPipe("test-1", true, "127.0.0.1:6001"))
+	t.Run("PushPipeline", helpers.PushToPipe("test-1", true, "127.0.0.1:6001"))
 	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
-	time.Sleep(time.Second * 2)
+	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
+	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
+	time.Sleep(time.Second * 5)
 	t.Run("DestroyPipeline", helpers.DestroyPipelines("127.0.0.1:6001", "test-1", "test-2"))
 
 	stopCh <- struct{}{}
 	wg.Wait()
 
-	require.Equal(t, 2, oLogger.FilterMessageSnippet("auto ack is turned on, message acknowledged").Len())
+	assert.Equal(t, 6, oLogger.FilterMessageSnippet("auto ack is turned on, message acknowledged").Len())
 
 	t.Cleanup(func() {
 		helpers.DeleteQueues(t, "sqs-auto-ack-1", "sqs-auto-ack-2")
