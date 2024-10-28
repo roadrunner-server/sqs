@@ -207,7 +207,7 @@
       "properties": {
         "key": {
           "title": "AWS Access Key ID",
-          "description": "This is required unless your environment variables provide AWS credentials or you use a self-hosted queue.",
+          "description": "This is required unless your environment variables provide AWS credentials.",
           "type": "string",
           "examples": [
             "ASIAIOSFODNN7EXAMPLE"
@@ -215,7 +215,7 @@
         },
         "secret": {
           "title": "AWS Access Key Secret",
-          "description": "This is required unless your environment variables provide AWS credentials or you use a self-hosted queue.",
+          "description": "This is required unless your environment variables provide AWS credentials.",
           "type": "string",
           "examples": [
             "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
