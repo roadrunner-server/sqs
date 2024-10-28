@@ -156,6 +156,16 @@ func (i *Item) Ack() error {
 }
 
 func (i *Item) commonNack(requeue bool, delay int) error {
+	if requeue {
+		// requeue message
+		// Note: Requeue checks for pipeline stop and decrements in-flight messages on its own
+		err := i.Requeue(nil, delay)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
 	if atomic.LoadUint64(i.Options.stopped) == 1 {
 		return errors.Str(pipelineStoppedError)
 	}
@@ -165,15 +175,6 @@ func (i *Item) commonNack(requeue bool, delay int) error {
 	}()
 	// message already deleted
 	if i.Options.AutoAck {
-		return nil
-	}
-	if requeue {
-		// requeue message
-		err := i.Requeue(nil, delay)
-		if err != nil {
-			return err
-		}
-
 		return nil
 	}
 	switch {
@@ -236,11 +237,10 @@ func (i *Item) Requeue(headers map[string][]string, delay int) error {
 
 	// overwrite the delay
 	i.Options.Delay = delay
-	if i.headers == nil {
-		i.headers = make(map[string][]string)
-	}
-
 	if len(headers) > 0 {
+		if i.headers == nil {
+			i.headers = make(map[string][]string)
+		}
 		maps.Copy(i.headers, headers)
 	}
 
