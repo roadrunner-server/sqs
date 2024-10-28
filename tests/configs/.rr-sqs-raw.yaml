@@ -21,7 +21,6 @@ jobs:
     test-raw:
       driver: sqs
       config:
-        consume_all: true
         prefetch: 10
         wait_time_seconds: 10
         queue: sqs-raw-payload

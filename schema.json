@@ -33,9 +33,6 @@
               "type": "boolean",
               "default": false
             },
-            "consume_all": {
-              "$ref": "https://raw.githubusercontent.com/roadrunner-server/jobs/refs/heads/master/schema.json#/definitions/PipelineProperties/consume_all"
-            },
             "visibility_timeout": {
               "type": "integer",
               "description": "The duration (in seconds) that a message received from a queue (by one consumer) will not be visible to the other message consumers. The visibility timeout begins when Amazon SQS returns a message. If the consumer fails to process and delete the message before the visibility timeout expires, the message becomes visible to other consumers. If a message must be received only once, your consumer must delete it within the duration of the visibility timeout.",
