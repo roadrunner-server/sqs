@@ -388,6 +388,10 @@ func TestSQSInitBadResp(t *testing.T) {
 		Version: "2023.3.0",
 	}
 
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-init-br-1", "sqs-init-br-2")
+	})
+
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	err := cont.RegisterAll(
 		cfg,
@@ -457,11 +461,7 @@ func TestSQSInitBadResp(t *testing.T) {
 	stopCh <- struct{}{}
 	wg.Wait()
 
-	require.GreaterOrEqual(t, oLogger.FilterMessageSnippet("response handler error").Len(), 2)
-
-	t.Cleanup(func() {
-		helpers.DeleteQueues(t, "sqs-init-br-1", "sqs-init-br-2")
-	})
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("response handler error").Len(), 2)
 }
 
 func TestSQSDeclare(t *testing.T) {
@@ -471,6 +471,10 @@ func TestSQSDeclare(t *testing.T) {
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-declare.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-declare_test")
+	})
 
 	err := cont.RegisterAll(
 		cfg,
@@ -542,10 +546,6 @@ func TestSQSDeclare(t *testing.T) {
 	time.Sleep(time.Second * 5)
 	stopCh <- struct{}{}
 	wg.Wait()
-
-	t.Cleanup(func() {
-		helpers.DeleteQueues(t, "sqs-declare_test")
-	})
 }
 
 func TestSQSJobsError(t *testing.T) {
@@ -555,6 +555,10 @@ func TestSQSJobsError(t *testing.T) {
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-jobs-err.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "declare_test_error")
+	})
 
 	err := cont.RegisterAll(
 		cfg,
@@ -626,12 +630,6 @@ func TestSQSJobsError(t *testing.T) {
 	time.Sleep(time.Second * 5)
 	stopCh <- struct{}{}
 	wg.Wait()
-
-	time.Sleep(time.Second * 5)
-
-	t.Cleanup(func() {
-		helpers.DeleteQueues(t, "declare_test_error")
-	})
 }
 
 func TestSQSApproximateReceiveCount(t *testing.T) {
@@ -641,6 +639,10 @@ func TestSQSApproximateReceiveCount(t *testing.T) {
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-read-approximate-count.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-read-approximate-count")
+	})
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	err := cont.RegisterAll(
@@ -722,10 +724,6 @@ func TestSQSApproximateReceiveCount(t *testing.T) {
 
 	stopCh <- struct{}{}
 	wg.Wait()
-
-	t.Cleanup(func() {
-		helpers.DeleteQueues(t, "sqs-read-approximate-count")
-	})
 }
 
 func TestSQSStat(t *testing.T) {
@@ -735,6 +733,10 @@ func TestSQSStat(t *testing.T) {
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-stat.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-test-declare-stats")
+	})
 
 	err := cont.RegisterAll(
 		cfg,
@@ -830,13 +832,8 @@ func TestSQSStat(t *testing.T) {
 
 	t.Run("DestroyPipeline", helpers.DestroyPipelines(address, pipe))
 
-	time.Sleep(time.Second * 5)
 	stopCh <- struct{}{}
 	wg.Wait()
-
-	t.Cleanup(func() {
-		helpers.DeleteQueues(t, "sqs-test-declare-stats")
-	})
 }
 
 func TestSQSRawPayload(t *testing.T) {
@@ -846,6 +843,10 @@ func TestSQSRawPayload(t *testing.T) {
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-raw.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-raw-payload")
+	})
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	err := cont.RegisterAll(
@@ -945,10 +946,6 @@ func TestSQSRawPayload(t *testing.T) {
 	wg.Wait()
 
 	assert.Equal(t, 1, oLogger.FilterMessageSnippet("job was processed successfully").Len())
-
-	t.Cleanup(func() {
-		helpers.DeleteQueues(t, "sqs-raw-payload")
-	})
 }
 
 func TestSQSOTEL(t *testing.T) {
@@ -958,6 +955,10 @@ func TestSQSOTEL(t *testing.T) {
 		Version: "2023.1.0",
 		Path:    "configs/.rr-sqs-otel.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-otel")
+	})
 
 	err := cont.RegisterAll(
 		cfg,
@@ -1053,7 +1054,6 @@ func TestSQSOTEL(t *testing.T) {
 
 	t.Cleanup(func() {
 		_ = resp.Body.Close()
-		helpers.DeleteQueues(t, "sqs-otel")
 	})
 }
 
