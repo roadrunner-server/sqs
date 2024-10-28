@@ -223,6 +223,10 @@ func TestSQSAutoAck(t *testing.T) {
 		Path:    "configs/.rr-sqs-auto-ack.yaml",
 	}
 
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-auto-ack-1", "sqs-auto-ack-2")
+	})
+
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	err := cont.RegisterAll(
 		cfg,
@@ -288,17 +292,13 @@ func TestSQSAutoAck(t *testing.T) {
 	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
 	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
 	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 10)
 	t.Run("DestroyPipeline", helpers.DestroyPipelines("127.0.0.1:6001", "test-1", "test-2"))
 
 	stopCh <- struct{}{}
 	wg.Wait()
 
 	assert.Equal(t, 6, oLogger.FilterMessageSnippet("auto ack is turned on, message acknowledged").Len())
-
-	t.Cleanup(func() {
-		helpers.DeleteQueues(t, "sqs-auto-ack-1", "sqs-auto-ack-2")
-	})
 }
 
 func TestSQSInitAttributes(t *testing.T) {
