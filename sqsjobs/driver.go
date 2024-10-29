@@ -218,7 +218,7 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		prefetch:               int32(pipe.Int(prefetch, 0)), //nolint:gosec
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
-		msgInFlightLimit: ptr(int32(pipe.Int(pref, 10))), //nolint:gosec
+		msgInFlightLimit: ptr(int32(pipe.Int(prefetch, 10))), //nolint:gosec
 		msgInFlight:      ptr(int64(0)),
 	}
 

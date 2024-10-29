@@ -10,7 +10,6 @@ const (
 	attributes             string = "attributes"
 	tags                   string = "tags"
 	queue                  string = "queue"
-	pref                   string = "prefetch"
 	visibility             string = "visibility_timeout"
 	errorVisibilityTimeout string = "error_visibility_timeout"
 	retainFailedJobs       string = "retain_failed_jobs"
@@ -134,7 +133,9 @@ func (c *Config) InitDefault() {
 		c.Queue = aws.String("default")
 	}
 
-	if c.Prefetch <= 0 || c.Prefetch > 10 {
+	if c.Prefetch <= 0 {
+		c.Prefetch = 1
+	} else if c.Prefetch > 10 {
 		c.Prefetch = 10
 	}
 
