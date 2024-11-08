@@ -166,13 +166,12 @@ func (i *Item) commonNack(requeue bool, delay int) error {
 
 		return nil
 	}
-	if atomic.LoadUint64(i.Options.stopped) == 1 {
-		return errors.Str(pipelineStoppedError)
-	}
+
 	defer func() {
 		i.Options.cond.Signal()
 		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
 	}()
+
 	// message already deleted
 	if i.Options.AutoAck {
 		return nil
@@ -218,10 +217,20 @@ func (i *Item) commonNack(requeue bool, delay int) error {
 }
 
 func (i *Item) Nack() error {
+	// return error if the pipeline was already stopped
+	if atomic.LoadUint64(i.Options.stopped) == 1 {
+		return errors.Str(pipelineStoppedError)
+	}
+
 	return i.commonNack(false, 0)
 }
 
 func (i *Item) NackWithOptions(requeue bool, delay int) error {
+	// return error if the pipeline was already stopped
+	if atomic.LoadUint64(i.Options.stopped) == 1 {
+		return errors.Str(pipelineStoppedError)
+	}
+
 	return i.commonNack(requeue, delay)
 }
 

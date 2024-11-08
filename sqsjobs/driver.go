@@ -133,7 +133,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 		prefetch:               conf.Prefetch,
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
-		msgInFlightLimit: ptr(conf.Prefetch),
+		msgInFlightLimit: ptr(int32(100)),
 		msgInFlight:      ptr(int64(0)),
 	}
 
@@ -218,7 +218,7 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		prefetch:               int32(pipe.Int(prefetch, 0)), //nolint:gosec
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
-		msgInFlightLimit: ptr(int32(pipe.Int(prefetch, 10))), //nolint:gosec
+		msgInFlightLimit: ptr(int32(100)),
 		msgInFlight:      ptr(int64(0)),
 	}
 
@@ -316,7 +316,7 @@ func (c *Driver) Stop(ctx context.Context) error {
 		}
 		// if blocked, let 1 item to pass to unblock the listener and close the pipe
 		c.cond.Signal()
-
+		// we're expecting that the listener will receive the signal and close the channel
 		c.pauseCh <- struct{}{}
 	}
 
