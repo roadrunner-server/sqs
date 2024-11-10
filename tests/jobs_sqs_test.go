@@ -2,6 +2,7 @@ package sqs
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -117,6 +118,10 @@ func TestSQSInit(t *testing.T) {
 
 	stopCh <- struct{}{}
 	wg.Wait()
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-init-1", "sqs-init-2")
+	})
 }
 
 func TestSQSRemovePQ(t *testing.T) {
@@ -204,6 +209,10 @@ func TestSQSRemovePQ(t *testing.T) {
 	assert.Equal(t, 20, oLogger.FilterMessageSnippet("job was pushed successfully").Len())
 	assert.Equal(t, 4, oLogger.FilterMessageSnippet("job processing was started").Len())
 	assert.Equal(t, 2, oLogger.FilterMessageSnippet("sqs listener was stopped").Len())
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-pq-1", "sqs-pq-2")
+	})
 }
 
 func TestSQSAutoAck(t *testing.T) {
@@ -211,8 +220,12 @@ func TestSQSAutoAck(t *testing.T) {
 
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
-		Path:    "configs/.rr-sqs-init.yaml",
+		Path:    "configs/.rr-sqs-auto-ack.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-auto-ack-1", "sqs-auto-ack-2")
+	})
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	err := cont.RegisterAll(
@@ -274,14 +287,18 @@ func TestSQSAutoAck(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 	t.Run("PushPipeline", helpers.PushToPipe("test-1", true, "127.0.0.1:6001"))
+	t.Run("PushPipeline", helpers.PushToPipe("test-1", true, "127.0.0.1:6001"))
+	t.Run("PushPipeline", helpers.PushToPipe("test-1", true, "127.0.0.1:6001"))
 	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
-	time.Sleep(time.Second * 2)
+	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
+	t.Run("PushPipeline", helpers.PushToPipe("test-2", true, "127.0.0.1:6001"))
+	time.Sleep(time.Second * 10)
 	t.Run("DestroyPipeline", helpers.DestroyPipelines("127.0.0.1:6001", "test-1", "test-2"))
 
 	stopCh <- struct{}{}
 	wg.Wait()
 
-	require.Equal(t, 2, oLogger.FilterMessageSnippet("auto ack is turned on, message acknowledged").Len())
+	assert.Equal(t, 6, oLogger.FilterMessageSnippet("auto ack is turned on, message acknowledged").Len())
 }
 
 func TestSQSInitAttributes(t *testing.T) {
@@ -357,6 +374,10 @@ func TestSQSInitAttributes(t *testing.T) {
 
 	stopCh <- struct{}{}
 	wg.Wait()
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-attr.fifo")
+	})
 }
 
 func TestSQSInitBadResp(t *testing.T) {
@@ -366,6 +387,10 @@ func TestSQSInitBadResp(t *testing.T) {
 		Path:    "configs/.rr-sqs-init-br.yaml",
 		Version: "2023.3.0",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-init-br-1", "sqs-init-br-2")
+	})
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	err := cont.RegisterAll(
@@ -436,7 +461,7 @@ func TestSQSInitBadResp(t *testing.T) {
 	stopCh <- struct{}{}
 	wg.Wait()
 
-	require.GreaterOrEqual(t, oLogger.FilterMessageSnippet("response handler error").Len(), 2)
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("response handler error").Len(), 2)
 }
 
 func TestSQSDeclare(t *testing.T) {
@@ -446,6 +471,10 @@ func TestSQSDeclare(t *testing.T) {
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-declare.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-declare_test")
+	})
 
 	err := cont.RegisterAll(
 		cfg,
@@ -506,7 +535,7 @@ func TestSQSDeclare(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	t.Run("DeclarePipeline", declareSQSPipe("default", "127.0.0.1:6001", "test-3"))
+	t.Run("DeclarePipeline", declareSQSPipe("sqs-declare_test", "127.0.0.1:6001", "test-3"))
 	t.Run("ConsumePipeline", helpers.ResumePipes("127.0.0.1:6001", "test-3"))
 	t.Run("PushPipeline", helpers.PushToPipe("test-3", false, "127.0.0.1:6001"))
 	time.Sleep(time.Second)
@@ -527,6 +556,10 @@ func TestSQSJobsError(t *testing.T) {
 		Path:    "configs/.rr-sqs-jobs-err.yaml",
 	}
 
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "declare_test_error")
+	})
+
 	err := cont.RegisterAll(
 		cfg,
 		&server.Plugin{},
@@ -586,7 +619,7 @@ func TestSQSJobsError(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	t.Run("DeclarePipeline", declareSQSPipe("default", "127.0.0.1:6001", "test-3"))
+	t.Run("DeclarePipeline", declareSQSPipe("declare_test_error", "127.0.0.1:6001", "test-3"))
 	t.Run("ConsumePipeline", helpers.ResumePipes("127.0.0.1:6001", "test-3"))
 	t.Run("PushPipeline", helpers.PushToPipe("test-3", false, "127.0.0.1:6001"))
 	time.Sleep(time.Second * 25)
@@ -597,8 +630,100 @@ func TestSQSJobsError(t *testing.T) {
 	time.Sleep(time.Second * 5)
 	stopCh <- struct{}{}
 	wg.Wait()
+}
 
-	time.Sleep(time.Second * 5)
+func TestSQSApproximateReceiveCount(t *testing.T) {
+	cont := endure.New(slog.LevelDebug)
+
+	cfg := &config.Plugin{
+		Version: "2023.3.0",
+		Path:    "configs/.rr-sqs-read-approximate-count.yaml",
+	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-read-approximate-count")
+	})
+
+	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	err := cont.RegisterAll(
+		cfg,
+		&server.Plugin{},
+		&rpcPlugin.Plugin{},
+		l,
+		&logger.Plugin{},
+		&jobs.Plugin{},
+		&resetter.Plugin{},
+		&informer.Plugin{},
+		&sqsPlugin.Plugin{},
+	)
+	assert.NoError(t, err)
+
+	err = cont.Init()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ch, err := cont.Serve()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	stopCh := make(chan struct{}, 1)
+
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case e := <-ch:
+				assert.Fail(t, "error", e.Error.Error())
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+			case <-sig:
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+				return
+			case <-stopCh:
+				// timeout
+				err = cont.Stop()
+				if err != nil {
+					assert.FailNow(t, "error", err.Error())
+				}
+				return
+			}
+		}
+	}()
+
+	time.Sleep(time.Second * 3)
+
+	address := "127.0.0.1:6081"
+	pipe := "test-err-approx-count"
+
+	// Push a job to the pipeline, wait for it to be consumed 4 times, which should take ~30
+	// In these 30 seconds, it should post Receive count: n for each attempt.
+	t.Run("PushPipeline", helpers.PushToPipe(pipe, false, address))
+
+	// 5s grace period
+	time.Sleep(time.Second * 35)
+
+	// Stop consuming messages
+	t.Run("PausePipeline", helpers.PausePipelines(address, pipe))
+
+	// Ensure that we can find a message saying the job was received 4 times after ~30s
+	// First receive is at 0 seconds, second at ~10, third at ~20 and fourth at ~30
+	assert.Equal(t, 1, oLogger.FilterMessageSnippet("Receive count: 4").Len())
+
+	stopCh <- struct{}{}
+	wg.Wait()
 }
 
 func TestSQSStat(t *testing.T) {
@@ -608,6 +733,10 @@ func TestSQSStat(t *testing.T) {
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-stat.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-test-declare-stats")
+	})
 
 	err := cont.RegisterAll(
 		cfg,
@@ -670,7 +799,7 @@ func TestSQSStat(t *testing.T) {
 
 	address := "127.0.0.1:6010"
 	pipe := "default-stat"
-	queue := "test-stat-sqs"
+	queue := "sqs-test-declare-stats"
 
 	t.Run("DeclarePipeline", declareSQSPipe(queue, address, pipe))
 	t.Run("ConsumePipeline", helpers.ResumePipes(address, pipe))
@@ -686,9 +815,9 @@ func TestSQSStat(t *testing.T) {
 	out := &jobState.State{}
 	t.Run("Stats", helpers.Stats(address, out))
 
-	assert.Equal(t, out.Pipeline, pipe)
-	assert.Equal(t, out.Driver, "sqs")
-	assert.Equal(t, out.Queue, "https://sqs.us-east-1.amazonaws.com/569200086642/test-stat-sqs")
+	assert.Equal(t, pipe, out.Pipeline)
+	assert.Equal(t, "sqs", out.Driver)
+	assert.Equal(t, fmt.Sprintf("%s/%s/%s", os.Getenv("RR_SQS_TEST_ENDPOINT"), os.Getenv("RR_SQS_TEST_ACCOUNT_ID"), queue), out.Queue)
 
 	time.Sleep(time.Second)
 	t.Run("ResumePipeline", helpers.ResumePipes(address, pipe))
@@ -697,13 +826,12 @@ func TestSQSStat(t *testing.T) {
 	out = &jobState.State{}
 	t.Run("Stats", helpers.Stats(address, out))
 
-	assert.Equal(t, out.Pipeline, pipe)
-	assert.Equal(t, out.Driver, "sqs")
-	assert.Equal(t, out.Queue, "https://sqs.us-east-1.amazonaws.com/569200086642/test-stat-sqs")
+	assert.Equal(t, pipe, out.Pipeline)
+	assert.Equal(t, "sqs", out.Driver)
+	assert.Equal(t, fmt.Sprintf("%s/%s/%s", os.Getenv("RR_SQS_TEST_ENDPOINT"), os.Getenv("RR_SQS_TEST_ACCOUNT_ID"), queue), out.Queue)
 
 	t.Run("DestroyPipeline", helpers.DestroyPipelines(address, pipe))
 
-	time.Sleep(time.Second * 5)
 	stopCh <- struct{}{}
 	wg.Wait()
 }
@@ -715,6 +843,10 @@ func TestSQSRawPayload(t *testing.T) {
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-raw.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-raw-payload")
+	})
 
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	err := cont.RegisterAll(
@@ -790,7 +922,7 @@ func TestSQSRawPayload(t *testing.T) {
 		})
 	})
 
-	queueURL, err := getQueueURL(client, "resp-queue")
+	queueURL, err := getQueueURL(client, "sqs-raw-payload")
 	require.NoError(t, err)
 
 	body := "fooobooobzzzzaaaaafdsasdfas"
@@ -823,6 +955,10 @@ func TestSQSOTEL(t *testing.T) {
 		Version: "2023.1.0",
 		Path:    "configs/.rr-sqs-otel.yaml",
 	}
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-otel")
+	})
 
 	err := cont.RegisterAll(
 		cfg,

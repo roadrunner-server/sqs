@@ -1,0 +1,29 @@
+version: '3'
+
+rpc:
+  listen: tcp://127.0.0.1:6081
+
+server:
+  command: "php php_test_files/jobs/jobs_respond_with_count.php"
+
+sqs: { }
+
+logs:
+  level: debug
+  encoding: console
+  mode: development
+
+jobs:
+  pool:
+    num_workers: 1
+  consume: [ "test-err-approx-count" ]
+  pipelines:
+    test-err-approx-count:
+      driver: sqs
+      config:
+        prefetch: 10
+        visibility_timeout: 900 # maximum for sqs
+        wait_time_seconds: 10
+        queue: sqs-read-approximate-count
+        retain_failed_jobs: true
+        error_visibility_timeout: 10

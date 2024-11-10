@@ -1,18 +1,12 @@
-version: '3'
+version: "3"
 
 rpc:
   listen: tcp://127.0.0.1:6232
 
 server:
   command: "php php_test_files/jobs/jobs_ok_sleep1.php"
-  relay: "pipes"
-  relay_timeout: "20s"
 
-sqs:
-  key: api-key
-  secret: api-secret
-  region: us-west-1
-  endpoint: http://127.0.0.1:9324
+sqs: {}
 
 logs:
   level: debug
@@ -20,43 +14,36 @@ logs:
   mode: development
 
 jobs:
-  num_pollers: 10
-  pipeline_size: 100000
   pool:
-    num_workers: 10
-    allocate_timeout: 60s
+    num_workers: 1
     destroy_timeout: 2s
 
   pipelines:
     test-1:
       driver: sqs
       config:
-        prefetch: 1
-        visibility_timeout: 0
-        wait_time_seconds: 0
-        message_group_id: 'RR'
-        queue: default-pref-1.fifo
+        prefetch: 10
+        max_messages_in_flight_limit: 10
+        message_group_id: "RR"
+        queue: sqs-init-prefetch-1.fifo # must end with .fifo!
         attributes:
-          FifoQueue: 'true'
-          DelaySeconds: 0
-          MaximumMessageSize: 262144
-          MessageRetentionPeriod: 345600
-          ReceiveMessageWaitTimeSeconds: 0
-          VisibilityTimeout: 30
+          FifoQueue: "true"
+          ReceiveMessageWaitTimeSeconds: 5
+          VisibilityTimeout: 10 # release jobs again after 10s; before the worker has processed all jobs
         tags:
           test: "tag"
 
     test-2:
       driver: sqs
       config:
-        prefetch: 1
-        queue: default-pref-2.fifo
-        message_group_id: 'RR'
+        prefetch: 10
+        max_messages_in_flight_limit: 10
+        queue: sqs-init-prefetch-2.fifo
+        message_group_id: "RR"
         attributes:
-          FifoQueue: 'true'
-          MessageRetentionPeriod: 86400
+          FifoQueue: "true"
+          ReceiveMessageWaitTimeSeconds: 5
         tags:
           test: "tag"
 
-  consume: [ "test-1", "test-2" ]
-
+  consume: ["test-1", "test-2"]

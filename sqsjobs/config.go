@@ -7,14 +7,19 @@ import (
 )
 
 const (
-	attributes           string = "attributes"
-	tags                 string = "tags"
-	queue                string = "queue"
-	pref                 string = "prefetch"
-	visibility           string = "visibility_timeout"
-	messageGroupID       string = "message_group_id"
-	waitTime             string = "wait_time"
-	skipQueueDeclaration string = "skip_queue_declaration"
+	attributes             string = "attributes"
+	tags                   string = "tags"
+	queue                  string = "queue"
+	visibility             string = "visibility_timeout"
+	errorVisibilityTimeout string = "error_visibility_timeout"
+	retainFailedJobs       string = "retain_failed_jobs"
+	prefetch               string = "prefetch"
+	messageGroupID         string = "message_group_id"
+	waitTime               string = "wait_time"
+	skipQueueDeclaration   string = "skip_queue_declaration"
+	maxMsgsInFlightLimit   string = "max_messages_in_flight_limit"
+	maxVisibilityTimeout   int32  = 43200
+	maxWaitTime            int32  = 20
 )
 
 // Config is used to parse pipeline configuration
@@ -28,21 +33,41 @@ type Config struct {
 
 	// pipeline
 
+	// The maximum number of messages which can be in-flight at once. Use this to prevent workers from overloading.
+	// Defaults to prefetch
+	MaxMsgInFlightLimit int32 `mapstructure:"max_messages_in_flight_limit"`
+
 	// get queue url, do not declare
 	SkipQueueDeclaration bool `mapstructure:"skip_queue_declaration"`
 
 	// The duration (in seconds) that the received messages are hidden from subsequent
 	// retrieve requests after being retrieved by a ReceiveMessage request.
 	VisibilityTimeout int32 `mapstructure:"visibility_timeout"`
+
+	// If defined (> 0) and RetainFailedJobs is true, RR will change the visibility timeout of failed jobs and let them
+	// be received again, instead of deleting and re-queueing them as new jobs. This allows you to use the automatic SQS
+	// dead-letter feature by setting a maximum receive count on your queue. This produces similar behavior to Elastic
+	// Beanstalk's worker environments.
+	// If this is enabled, your driver credentials must have the sqs:ChangeMessageVisibility permission for the queue.
+	ErrorVisibilityTimeout int32 `mapstructure:"error_visibility_timeout"`
+
+	// Whether to retain failed jobs in the queue. If you set this to true, jobs will be consumed by the
+	// workers again after VisibilityTimeout, or ErrorVisibilityTimeout (if set), has passed.
+	// If this is false, jobs will be deleted from the queue and immediately queued again as new jobs.
+	// Defaults to false.
+	RetainFailedJobs bool `mapstructure:"retain_failed_jobs"`
+
 	// The duration (in seconds) for which the call waits for a message to arrive
 	// in the queue before returning. If a message is available, the call returns
 	// sooner than WaitTimeSeconds. If no messages are available and the wait time
 	// expires, the call returns successfully with an empty list of messages.
 	WaitTimeSeconds int32 `mapstructure:"wait_time_seconds"`
+
 	// Prefetch is the maximum number of messages to return. Amazon SQS never returns more messages
 	// than this value (however, fewer messages might be returned). Valid values: 1 to
 	// 10. Default: 1.
 	Prefetch int32 `mapstructure:"prefetch"`
+
 	// The name of the new queue. The following limits apply to this name:
 	//
 	// * A queue
@@ -113,12 +138,35 @@ func (c *Config) InitDefault() {
 		c.Queue = aws.String("default")
 	}
 
-	if c.Prefetch == 0 {
+	if c.Prefetch <= 0 {
+		c.Prefetch = 1
+	} else if c.Prefetch > 10 {
 		c.Prefetch = 10
 	}
 
-	if c.WaitTimeSeconds == 0 {
-		c.WaitTimeSeconds = 5
+	if c.MaxMsgInFlightLimit == 0 {
+		c.MaxMsgInFlightLimit = c.Prefetch
+	}
+
+	if c.WaitTimeSeconds < 0 {
+		// 0 - ignored by AWS
+		c.WaitTimeSeconds = 0
+	} else if c.WaitTimeSeconds > maxWaitTime {
+		c.WaitTimeSeconds = maxWaitTime
+	}
+
+	// Make sure visibility timeouts are within the allowed boundaries.
+	if c.VisibilityTimeout < 0 {
+		// 0 - ignored by AWS
+		c.VisibilityTimeout = 0
+	} else if c.VisibilityTimeout > maxVisibilityTimeout {
+		c.VisibilityTimeout = maxVisibilityTimeout
+	}
+
+	if c.ErrorVisibilityTimeout < 0 {
+		c.ErrorVisibilityTimeout = 0
+	} else if c.ErrorVisibilityTimeout > maxVisibilityTimeout {
+		c.ErrorVisibilityTimeout = maxVisibilityTimeout
 	}
 
 	if c.Attributes != nil {
@@ -140,6 +188,15 @@ func (c *Config) InitDefault() {
 
 	// used for the tests
 	if str := os.Getenv("RR_TEST_ENV"); str != "" {
+		// All parameters are required for the tests to succeed, so we
+		// fail fast here if this is not configured correctly.
+		if os.Getenv("RR_SQS_TEST_REGION") == "" ||
+			os.Getenv("RR_SQS_TEST_KEY") == "" ||
+			os.Getenv("RR_SQS_TEST_SECRET") == "" ||
+			os.Getenv("RR_SQS_TEST_ENDPOINT") == "" ||
+			os.Getenv("RR_SQS_TEST_ACCOUNT_ID") == "" {
+			panic("security check: test mode is enabled, but not all sqs environment parameters are set")
+		}
 		c.Region = os.Getenv("RR_SQS_TEST_REGION")
 		c.Key = os.Getenv("RR_SQS_TEST_KEY")
 		c.Secret = os.Getenv("RR_SQS_TEST_SECRET")

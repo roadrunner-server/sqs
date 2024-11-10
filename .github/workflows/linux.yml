@@ -1,11 +1,20 @@
 name: SQS
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
 
 jobs:
   sqs_test:
     name: SQS plugin (Go ${{ matrix.go }}, PHP ${{ matrix.php }}, OS ${{matrix.os}})
     runs-on: ${{ matrix.os }}
+    concurrency:
+      group: sqs-test-group
+      cancel-in-progress: true
     timeout-minutes: 60
     strategy:
       matrix:
@@ -60,6 +69,7 @@ jobs:
           RR_SQS_TEST_REGION: ${{ secrets.RR_SQS_TEST_REGION }}
           RR_SQS_TEST_KEY: ${{ secrets.RR_SQS_TEST_KEY }}
           RR_SQS_TEST_SECRET: ${{ secrets.RR_SQS_TEST_SECRET }}
+          RR_SQS_TEST_ACCOUNT_ID: ${{ secrets.RR_SQS_TEST_ACCOUNT_ID }}
         run: |
           cd tests
           mkdir ./coverage-ci

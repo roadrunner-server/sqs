@@ -109,6 +109,10 @@ func TestSQSInitFifo(t *testing.T) {
 	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("sqs listener was stopped").Len(), 2)
 	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("destroy signal received").Len(), 1)
 	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("pipeline was stopped").Len(), 2)
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-init-1.fifo", "sqs-init-2.fifo")
+	})
 }
 
 func TestSQSInitFifoAutoAck(t *testing.T) {
@@ -117,7 +121,7 @@ func TestSQSInitFifoAutoAck(t *testing.T) {
 	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
-		Path:    "configs/.rr-sqs-init_fifo.yaml",
+		Path:    "configs/.rr-sqs-init_fifo_auto_ack.yaml",
 	}
 
 	err := cont.RegisterAll(
@@ -188,6 +192,10 @@ func TestSQSInitFifoAutoAck(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, 2, oLogger.FilterMessageSnippet("auto ack is turned on, message acknowledged").Len())
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-init-1-auto-ack.fifo", "sqs-init-2-auto-ack.fifo")
+	})
 }
 
 func TestSQSInitBadRespFifo(t *testing.T) {
@@ -267,6 +275,10 @@ func TestSQSInitBadRespFifo(t *testing.T) {
 	wg.Wait()
 
 	require.GreaterOrEqual(t, oLogger.FilterMessageSnippet("response handler error").Len(), 2)
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-init-br-1.fifo", "sqs-init-br-2.fifo")
+	})
 }
 
 func TestSQSDeclareFifo(t *testing.T) {
@@ -336,7 +348,7 @@ func TestSQSDeclareFifo(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("default-decl.fifo", "127.0.0.1:32341"))
+	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("sqs-default-decl.fifo", "127.0.0.1:32341"))
 	t.Run("ConsumePipelineFifo", helpers.ResumePipes("127.0.0.1:32341", "test-3"))
 	t.Run("PushPipelineFifo", helpers.PushToPipe("test-3", false, "127.0.0.1:32341"))
 	time.Sleep(time.Second)
@@ -347,6 +359,10 @@ func TestSQSDeclareFifo(t *testing.T) {
 	time.Sleep(time.Second * 5)
 	stopCh <- struct{}{}
 	wg.Wait()
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-default-decl.fifo")
+	})
 }
 
 func TestSQSJobsErrorFifo(t *testing.T) {
@@ -416,7 +432,7 @@ func TestSQSJobsErrorFifo(t *testing.T) {
 
 	time.Sleep(time.Second * 3)
 
-	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("default-err.fifo", "127.0.0.1:12342"))
+	t.Run("DeclarePipelineFifo", declareSQSPipeFifo("sqs-default-err.fifo", "127.0.0.1:12342"))
 	t.Run("ConsumePipelineFifo", helpers.ResumePipes("127.0.0.1:12342", "test-3"))
 	t.Run("PushPipelineFifo", helpers.PushToPipe("test-3", false, "127.0.0.1:12342"))
 	time.Sleep(time.Second * 25)
@@ -429,6 +445,10 @@ func TestSQSJobsErrorFifo(t *testing.T) {
 	wg.Wait()
 
 	time.Sleep(time.Second * 5)
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-default-err.fifo")
+	})
 }
 
 func TestSQSPrefetch(t *testing.T) {
@@ -498,24 +518,30 @@ func TestSQSPrefetch(t *testing.T) {
 	}()
 
 	time.Sleep(time.Second * 3)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 15; i++ {
 		go func() {
 			t.Run("PushPipelineFifo", helpers.PushToPipe("test-1", false, "127.0.0.1:6232"))
 			t.Run("PushPipelineFifo", helpers.PushToPipe("test-2", false, "127.0.0.1:6232"))
 		}()
 	}
 
-	time.Sleep(time.Second * 40)
+	time.Sleep(time.Second * 60)
 	t.Run("DestroyPipeline", helpers.DestroyPipelines("127.0.0.1:6232", "test-1", "test-2"))
 	stopCh <- struct{}{}
 
 	wg.Wait()
 
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("prefetch limit was reached").Len(), 1)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("receive message").Len(), 2)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was pushed successfully").Len(), 20)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 20)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("sqs listener was stopped").Len(), 2)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("destroy signal received").Len(), 1)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("pipeline was stopped").Len(), 2)
+	time.Sleep(time.Second * 10)
+
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("prefetch limit was reached").Len(), 1, "1 queue must reach prefetch limit")
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("receive message").Len(), 30, "30 jobs must be received")
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was pushed successfully").Len(), 30, "30 jobs must be pushed")
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 30, "30 jobs must be processed")
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("sqs listener was stopped").Len(), 2, "2 sqs listeners must be stopped")
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("destroy signal received").Len(), 1, "1 destroy signal must be received")
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("pipeline was stopped").Len(), 2, "2 pipelines must be stopped")
+
+	t.Cleanup(func() {
+		helpers.DeleteQueues(t, "sqs-init-prefetch-1.fifo", "sqs-init-prefetch-2.fifo")
+	})
 }

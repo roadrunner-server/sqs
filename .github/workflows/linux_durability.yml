@@ -1,12 +1,21 @@
 name: sqs_durability
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
 
 jobs:
   sqs_durability_test:
     name: SQS plugin durability (Go ${{ matrix.go }}, PHP ${{ matrix.php }}, OS ${{matrix.os}})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    concurrency:
+      group: sqs-test-durability-${{ github.ref }}
+      cancel-in-progress: true
     strategy:
       matrix:
         php: [ "8.3" ]

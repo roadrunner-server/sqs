@@ -123,6 +123,6 @@ func TestDurabilitySQS(t *testing.T) {
 	stopCh <- struct{}{}
 	wg.Wait()
 
-	assert.Equal(t, oLogger.FilterMessageSnippet("job was pushed successfully").Len(), 4)
-	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 4)
+	assert.Equal(t, 4, oLogger.FilterMessageSnippet("job was pushed successfully").Len(), "Exactly 4 jobs must have been pushed.")
+	assert.GreaterOrEqual(t, oLogger.FilterMessageSnippet("job was processed successfully").Len(), 4, "4 or more jobs must have been processed.")
 }
