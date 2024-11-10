@@ -133,7 +133,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 		prefetch:               conf.Prefetch,
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
-		msgInFlightLimit: ptr(int32(100)),
+		msgInFlightLimit: &conf.MaxMsgInFlightLimit,
 		msgInFlight:      ptr(int64(0)),
 	}
 
@@ -199,6 +199,16 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		return nil, errors.E(op, err)
 	}
 
+	wt := pipe.Int(waitTime, 0)
+	if wt < 0 {
+		wt = 0
+	} else if wt > int(maxWaitTime) {
+		wt = int(maxWaitTime)
+	}
+
+	pref := int32(pipe.Int(prefetch, 1))                        //nolint:gosec
+	msgInFl := int32(pipe.Int(maxMsgsInFlightLimit, int(pref))) //nolint:gosec
+
 	// initialize job Driver
 	jb := &Driver{
 		tracer:                 tracer,
@@ -214,11 +224,12 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		visibilityTimeout:      int32(pipe.Int(visibility, 0)),             //nolint:gosec
 		errorVisibilityTimeout: int32(pipe.Int(errorVisibilityTimeout, 0)), //nolint:gosec
 		retainFailedJobs:       pipe.Bool(retainFailedJobs, false),
-		waitTime:               int32(pipe.Int(waitTime, 0)), //nolint:gosec
-		prefetch:               int32(pipe.Int(prefetch, 0)), //nolint:gosec
+		waitTime:               int32(wt), //nolint:gosec
+		prefetch:               pref,
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
-		msgInFlightLimit: ptr(int32(100)),
+		// default - prefetch
+		msgInFlightLimit: ptr(msgInFl), //nolin:gosec
 		msgInFlight:      ptr(int64(0)),
 	}
 

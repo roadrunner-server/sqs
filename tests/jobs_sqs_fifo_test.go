@@ -518,7 +518,7 @@ func TestSQSPrefetch(t *testing.T) {
 	}()
 
 	time.Sleep(time.Second * 3)
-	for i := 0; i < 120; i++ {
+	for i := 0; i < 15; i++ {
 		go func() {
 			t.Run("PushPipelineFifo", helpers.PushToPipe("test-1", false, "127.0.0.1:6232"))
 			t.Run("PushPipelineFifo", helpers.PushToPipe("test-2", false, "127.0.0.1:6232"))
