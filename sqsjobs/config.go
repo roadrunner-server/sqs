@@ -17,7 +17,7 @@ const (
 	messageGroupID         string = "message_group_id"
 	waitTime               string = "wait_time"
 	skipQueueDeclaration   string = "skip_queue_declaration"
-	maxMsgsInFlightLimit   string = "max_messages_in_flight_limit"
+	maxMsgsInFlightLimit   string = "max_messages_in_flight"
 	maxVisibilityTimeout   int32  = 43200
 	maxWaitTime            int32  = 20
 )
@@ -35,7 +35,7 @@ type Config struct {
 
 	// The maximum number of messages which can be in-flight at once. Use this to prevent workers from overloading.
 	// Defaults to prefetch
-	MaxMsgInFlightLimit int32 `mapstructure:"max_messages_in_flight_limit"`
+	MaxMsgInFlightLimit int32 `mapstructure:"max_messages_in_flight"`
 
 	// get queue url, do not declare
 	SkipQueueDeclaration bool `mapstructure:"skip_queue_declaration"`

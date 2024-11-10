@@ -23,7 +23,7 @@ jobs:
       driver: sqs
       config:
         prefetch: 10
-        max_messages_in_flight_limit: 10
+        max_messages_in_flight: 10
         message_group_id: "RR"
         queue: sqs-init-prefetch-1.fifo # must end with .fifo!
         attributes:
@@ -37,7 +37,7 @@ jobs:
       driver: sqs
       config:
         prefetch: 10
-        max_messages_in_flight_limit: 10
+        max_messages_in_flight: 10
         queue: sqs-init-prefetch-2.fifo
         message_group_id: "RR"
         attributes:

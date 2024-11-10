@@ -29,7 +29,7 @@
               "type": "boolean",
               "default": false
             },
-            "max_messages_in_flight_limit": {
+            "max_messages_in_flight": {
               "description": "Maximum number of messages that can be in-flight at any given time. This is useful to limit the number of messages that are being processed concurrently. Default is the same value as `prefetch`.",
               "type": "integer",
               "default": 10
