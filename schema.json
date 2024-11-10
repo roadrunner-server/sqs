@@ -6,16 +6,12 @@
   "definitions": {
     "pipeline": {
       "type": "object",
-      "required": [
-        "driver"
-      ],
+      "required": ["driver"],
       "additionalProperties": false,
       "properties": {
         "driver": {
           "type": "string",
-          "enum": [
-            "sqs"
-          ]
+          "enum": ["sqs"]
         },
         "config": {
           "type": "object",
@@ -32,6 +28,11 @@
               "description": "Whether to skip creation of the SQS queue. If you set to this to `true`, the queue must already exist.",
               "type": "boolean",
               "default": false
+            },
+            "max_messages_in_flight_limit": {
+              "description": "Maximum number of messages that can be in-flight at any given time. This is useful to limit the number of messages that are being processed concurrently. Default is the same value as `prefetch`.",
+              "type": "integer",
+              "default": 10
             },
             "visibility_timeout": {
               "type": "integer",
@@ -130,11 +131,7 @@
                     "redrivePermission": {
                       "description": "The permission type that defines which source queues can specify the current queue as the dead-letter queue.",
                       "type": "string",
-                      "enum": [
-                        "allowAll",
-                        "denyAll",
-                        "byQueue"
-                      ]
+                      "enum": ["allowAll", "denyAll", "byQueue"]
                     },
                     "sourceQueueArns": {
                       "description": "The Amazon Resource Names (ARN)s of the source queues that can specify this queue as the dead-letter queue and redrive messages. You can specify this parameter only when the `redrivePermission` parameter is set to `byQueue`. You can specify up to 10 source queue ARNs. To allow more than 10 source queues to specify dead-letter queues, set the `redrivePermission` parameter to `allowAll`.",
@@ -157,18 +154,12 @@
                 "DeduplicationScope": {
                   "description": "**High-throughput FIFO queues only.** Specifies whether message deduplication occurs at the message group or queue level.",
                   "type": "string",
-                  "enum": [
-                    "messageGroup",
-                    "queue"
-                  ]
+                  "enum": ["messageGroup", "queue"]
                 },
                 "FifoThroughputLimit": {
                   "description": "**High-throughput FIFO queues only.** Specifies whether the FIFO queue throughput quota applies to the entire queue or per message group. The `perMessageGroupId` value is allowed only when the value for `DeduplicationScope` is `messageGroup`.",
                   "type": "string",
-                  "enum": [
-                    "perQueue",
-                    "perMessageGroupId"
-                  ]
+                  "enum": ["perQueue", "perMessageGroupId"]
                 },
                 "KmsMasterKeyId": {
                   "description": "**Applies only to server-side-encryption.** The ID of an AWS managed customer master key (CMK) for Amazon SQS or a custom CMK. While the alias of the AWS-managed CMK for Amazon SQS is always `alias/aws/sqs`, the alias of a custom CMK can, for example, be `alias/MyAlias`.",
@@ -209,17 +200,13 @@
           "title": "AWS Access Key ID",
           "description": "This is required unless your environment variables provide AWS credentials.",
           "type": "string",
-          "examples": [
-            "ASIAIOSFODNN7EXAMPLE"
-          ]
+          "examples": ["ASIAIOSFODNN7EXAMPLE"]
         },
         "secret": {
           "title": "AWS Access Key Secret",
           "description": "This is required unless your environment variables provide AWS credentials.",
           "type": "string",
-          "examples": [
-            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-          ]
+          "examples": ["wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"]
         },
         "region": {
           "title": "AWS Region",
@@ -241,18 +228,12 @@
           "title": "Queue Endpoint",
           "description": "The endpoint of your queue. You only need to provide this value if you use a self-hosted queue, as the endpoint will be resolved from the provided AWS Region and queue name otherwise.",
           "type": "string",
-          "examples": [
-            "http://127.0.0.1:9324"
-          ]
+          "examples": ["http://127.0.0.1:9324"]
         }
       },
       "dependentRequired": {
-        "key": [
-          "secret"
-        ],
-        "secret": [
-          "key"
-        ]
+        "key": ["secret"],
+        "secret": ["key"]
       }
     }
   }
