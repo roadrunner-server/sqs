@@ -2,7 +2,7 @@ module github.com/roadrunner-server/sqs/v5
 
 go 1.23
 
-toolchain go1.23.2
+toolchain go1.23.3
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.32.4
@@ -16,7 +16,7 @@ require (
 	github.com/roadrunner-server/endure/v2 v2.6.1
 	github.com/roadrunner-server/errors v1.4.1
 	github.com/stretchr/testify v1.9.0
-	go.opentelemetry.io/contrib/propagators/jaeger v1.31.0
+	go.opentelemetry.io/contrib/propagators/jaeger v1.32.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/sdk v1.32.0
 	go.opentelemetry.io/otel/trace v1.32.0
