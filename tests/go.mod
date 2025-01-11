@@ -7,8 +7,8 @@ toolchain go1.23.4
 require (
 	github.com/Shopify/toxiproxy/v2 v2.11.0
 	github.com/aws/aws-sdk-go-v2 v1.32.8
-	github.com/aws/aws-sdk-go-v2/config v1.28.9
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.50
+	github.com/aws/aws-sdk-go-v2/config v1.28.10
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.51
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.37.6
 	github.com/goccy/go-json v0.10.4
 	github.com/google/uuid v1.6.0
@@ -39,7 +39,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.24.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.33.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.33.6 // indirect
 	github.com/aws/smithy-go v1.22.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -107,7 +107,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.33.0 // indirect
 	go.opentelemetry.io/otel/trace v1.33.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
-	go.temporal.io/api v1.43.0 // indirect
+	go.temporal.io/api v1.43.1 // indirect
 	go.temporal.io/sdk v1.31.0 // indirect
 	go.temporal.io/sdk/contrib/opentelemetry v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
