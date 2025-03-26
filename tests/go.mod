@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.38.2
 	github.com/goccy/go-json v0.10.5
 	github.com/google/uuid v1.6.0
-	github.com/roadrunner-server/api/v4 v4.18.1
+	github.com/roadrunner-server/api/v4 v4.19.0
 	github.com/roadrunner-server/config/v5 v5.1.6
 	github.com/roadrunner-server/endure/v2 v2.6.1
 	github.com/roadrunner-server/goridge/v3 v3.8.3
@@ -78,7 +78,7 @@ require (
 	github.com/roadrunner-server/priority_queue v1.0.3 // indirect
 	github.com/roadrunner-server/tcplisten v1.5.2 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
-	github.com/sagikazarmark/locafero v0.8.0 // indirect
+	github.com/sagikazarmark/locafero v0.9.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
