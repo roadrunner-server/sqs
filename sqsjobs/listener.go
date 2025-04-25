@@ -85,7 +85,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 					continue
 				}
 
-				for i := 0; i < len(message.Messages); i++ {
+				for i := range message.Messages {
 					c.cond.L.Lock()
 					// lock when we hit the limit
 					for atomic.LoadInt64(c.msgInFlight) >= int64(atomic.LoadInt32(c.msgInFlightLimit)) {
