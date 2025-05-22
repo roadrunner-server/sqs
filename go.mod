@@ -18,7 +18,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/contrib/propagators/jaeger v1.35.0
 	go.opentelemetry.io/otel v1.36.0
-	go.opentelemetry.io/otel/sdk v1.35.0
+	go.opentelemetry.io/otel/sdk v1.36.0
 	go.opentelemetry.io/otel/trace v1.36.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/genproto v0.0.0-20250512202823-5a2f75b736a9
