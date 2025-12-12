@@ -82,7 +82,7 @@ jobs:
           go test -timeout 20m -v -race -cover -tags=debug -failfast -coverpkg=$(cat ./tests/pkgs.txt) -coverprofile=./tests/coverage-ci/sqs_u.out -covermode=atomic ./...
 
       - name: Archive code coverage results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage
           path: ./tests/coverage-ci/
