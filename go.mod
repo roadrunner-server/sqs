@@ -2,7 +2,7 @@ module github.com/roadrunner-server/sqs/v5
 
 go 1.25
 
-toolchain go1.25.7
+toolchain go1.26.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.1
@@ -21,7 +21,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.40.0
 	go.opentelemetry.io/otel/trace v1.40.0
 	go.uber.org/zap v1.27.1
-	google.golang.org/genproto v0.0.0-20260203192932-546029d2fa20
+	google.golang.org/genproto v0.0.0-20260209200024-4cfbd4190f57
 )
 
 require (
