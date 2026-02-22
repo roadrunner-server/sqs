@@ -134,7 +134,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
 		msgInFlightLimit: &conf.MaxMsgInFlightLimit,
-		msgInFlight:      ptr(int64(0)),
+		msgInFlight:      new(int64(0)),
 	}
 
 	// PARSE CONFIGURATION -------
@@ -206,8 +206,8 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		wt = int(maxWaitTime)
 	}
 
-	pref := int32(pipe.Int(prefetch, 1))                        //nolint:gosec
-	msgInFl := int32(pipe.Int(maxMsgsInFlightLimit, int(pref))) //nolint:gosec
+	pref := int32(pipe.Int(prefetch, 1))                             //nolint:gosec
+	msgInFl := new(int32(pipe.Int(maxMsgsInFlightLimit, int(pref)))) //nolint:gosec
 
 	// initialize job Driver
 	jb := &Driver{
@@ -224,13 +224,13 @@ func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.
 		visibilityTimeout:      int32(pipe.Int(visibility, 0)),             //nolint:gosec
 		errorVisibilityTimeout: int32(pipe.Int(errorVisibilityTimeout, 0)), //nolint:gosec
 		retainFailedJobs:       pipe.Bool(retainFailedJobs, false),
-		waitTime:               int32(wt), //nolint:gosec
+		waitTime:               int32(wt),
 		prefetch:               pref,
 		pauseCh:                make(chan struct{}, 1),
 		// new in 2.12.1
 		// default - prefetch
-		msgInFlightLimit: ptr(msgInFl), //nolin:gosec
-		msgInFlight:      ptr(int64(0)),
+		msgInFlightLimit: msgInFl, //nolin:gosec
+		msgInFlight:      new(int64(0)),
 	}
 
 	// PARSE CONFIGURATION -------
@@ -551,10 +551,6 @@ func getQueueURL(client *sqs.Client, queueName *string) (*string, error) {
 	}
 
 	return out.QueueUrl, nil
-}
-
-func ptr[T any](val T) *T {
-	return &val
 }
 
 func ready(r uint32) bool {
