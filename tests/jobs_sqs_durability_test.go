@@ -18,7 +18,7 @@ import (
 	"github.com/roadrunner-server/jobs/v5"
 	"github.com/roadrunner-server/resetter/v5"
 	"github.com/roadrunner-server/server/v5"
-	"github.com/roadrunner-server/sqs/v5"
+	"github.com/roadrunner-server/sqs/v6"
 	"go.uber.org/zap"
 
 	"tests/helpers"

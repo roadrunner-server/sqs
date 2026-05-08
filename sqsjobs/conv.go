@@ -2,7 +2,7 @@ package sqsjobs
 
 import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/roadrunner-server/api/v4/plugins/v3/jobs"
+	"github.com/roadrunner-server/api-plugins/v6/jobs"
 )
 
 func convAttr(h map[string]string) map[string][]string {

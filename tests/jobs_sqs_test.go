@@ -40,7 +40,7 @@ import (
 	"github.com/roadrunner-server/resetter/v5"
 	rpcPlugin "github.com/roadrunner-server/rpc/v5"
 	"github.com/roadrunner-server/server/v5"
-	sqsPlugin "github.com/roadrunner-server/sqs/v5"
+	sqsPlugin "github.com/roadrunner-server/sqs/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

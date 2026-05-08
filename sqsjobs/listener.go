@@ -70,7 +70,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 					}
 
 					c.log.Error("receive message", zap.String("error code", apiErr.ErrorCode()), zap.String("message", apiErr.ErrorMessage()), zap.String("error fault", apiErr.ErrorFault().String()))
-					_, err = c.client.CreateQueue(context.Background(), &sqs.CreateQueueInput{QueueName: c.queue, Attributes: c.attributes, Tags: c.tags})
+					_, err = c.client.CreateQueue(ctx, &sqs.CreateQueueInput{QueueName: c.queue, Attributes: c.attributes, Tags: c.tags})
 					if err != nil {
 						c.log.Error("create queue", zap.Error(err))
 					}
@@ -97,10 +97,10 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 					c.log.Debug("receive message", zap.Stringp("ID", m.MessageId))
 					item := c.unpack(&m)
 
-					ctxspan, span := c.tracer.Tracer(tracerName).Start(c.prop.Extract(context.Background(), propagation.HeaderCarrier(item.headers)), "sqs_listener")
+					ctxspan, span := c.tracer.Tracer(tracerName).Start(c.prop.Extract(ctx, propagation.HeaderCarrier(item.headers)), "sqs_listener")
 
 					if item.Options.AutoAck {
-						ctxT, cancel := context.WithTimeout(context.Background(), time.Minute)
+						ctxT, cancel := context.WithTimeout(ctx, time.Minute)
 						_, errD := c.client.DeleteMessage(ctxT, &sqs.DeleteMessageInput{
 							QueueUrl:      c.queueURL,
 							ReceiptHandle: m.ReceiptHandle,

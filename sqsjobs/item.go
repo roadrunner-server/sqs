@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
-	"github.com/roadrunner-server/api/v4/plugins/v4/jobs"
+	"github.com/roadrunner-server/api-plugins/v6/jobs"
 	"github.com/roadrunner-server/errors"
 	"go.uber.org/zap"
 

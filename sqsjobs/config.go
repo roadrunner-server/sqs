@@ -26,9 +26,9 @@ const (
 type Config struct {
 	// global
 	Key          string `mapstructure:"key"`
-	Secret       string `mapstructure:"secret"` //nolint:gosec
+	Secret       string `mapstructure:"secret"`
 	Region       string `mapstructure:"region"`
-	SessionToken string `mapstructure:"session_token"` //nolint:gosec
+	SessionToken string `mapstructure:"session_token"`
 	Endpoint     string `mapstructure:"endpoint"`
 
 	// pipeline
