@@ -1,6 +1,7 @@
 package sqs
 
 import (
+	"context"
 	"log/slog"
 
 	_ "google.golang.org/genproto/protobuf/ptype" //nolint:revive,nolintlint
@@ -62,10 +63,10 @@ func (p *Plugin) Collects() []*dep.In {
 	}
 }
 
-func (p *Plugin) DriverFromConfig(configKey string, pq jobs.Queue, pipeline jobs.Pipeline) (jobs.Driver, error) {
-	return sqsjobs.FromConfig(p.tracer, configKey, pipeline, p.log, p.cfg, pq)
+func (p *Plugin) DriverFromConfig(ctx context.Context, configKey string, pq jobs.Queue, pipeline jobs.Pipeline) (jobs.Driver, error) {
+	return sqsjobs.FromConfig(ctx, p.tracer, configKey, pipeline, p.log, p.cfg, pq)
 }
 
-func (p *Plugin) DriverFromPipeline(pipe jobs.Pipeline, pq jobs.Queue) (jobs.Driver, error) {
-	return sqsjobs.FromPipeline(p.tracer, pipe, p.log, p.cfg, pq)
+func (p *Plugin) DriverFromPipeline(ctx context.Context, pipe jobs.Pipeline, pq jobs.Queue) (jobs.Driver, error) {
+	return sqsjobs.FromPipeline(ctx, p.tracer, pipe, p.log, p.cfg, pq)
 }

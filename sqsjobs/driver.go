@@ -80,7 +80,7 @@ type Driver struct {
 	pauseCh chan struct{}
 }
 
-func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pipeline, log *slog.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
+func FromConfig(_ context.Context, tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pipeline, log *slog.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	// if no such key - error
@@ -162,7 +162,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 	return jb, nil
 }
 
-func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *slog.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
+func FromPipeline(_ context.Context, tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *slog.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	if tracer == nil {
