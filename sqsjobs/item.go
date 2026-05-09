@@ -2,6 +2,8 @@ package sqsjobs
 
 import (
 	"context"
+	"encoding/json"
+	stderr "errors"
 	"maps"
 	"strconv"
 	"strings"
@@ -12,12 +14,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/roadrunner-server/api-plugins/v6/jobs"
 	"github.com/roadrunner-server/errors"
-
-	stderr "errors"
 )
 
 const (

@@ -9,23 +9,19 @@ import (
 	"testing"
 	"time"
 
-	mocklogger "tests/mock"
-
 	toxiproxy "github.com/Shopify/toxiproxy/v2/client"
 	"github.com/roadrunner-server/config/v5"
 	"github.com/roadrunner-server/endure/v2"
 	"github.com/roadrunner-server/informer/v5"
 	"github.com/roadrunner-server/jobs/v5"
 	"github.com/roadrunner-server/resetter/v5"
+	rpcPlugin "github.com/roadrunner-server/rpc/v5"
 	"github.com/roadrunner-server/server/v5"
 	"github.com/roadrunner-server/sqs/v6"
-	"go.uber.org/zap"
-
-	"tests/helpers"
-
-	rpcPlugin "github.com/roadrunner-server/rpc/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tests/helpers"
+	mocklogger "tests/mock"
 )
 
 func TestDurabilitySQS(t *testing.T) {
@@ -42,7 +38,7 @@ func TestDurabilitySQS(t *testing.T) {
 		Path:    "configs/.rr-sqs-durability-redial.yaml",
 	}
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err = cont.RegisterAll(
 		l,
 		cfg,

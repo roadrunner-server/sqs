@@ -9,9 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"tests/helpers"
-	mocklogger "tests/mock"
-
 	"github.com/roadrunner-server/config/v5"
 	"github.com/roadrunner-server/endure/v2"
 	"github.com/roadrunner-server/informer/v5"
@@ -23,7 +20,8 @@ import (
 	"github.com/roadrunner-server/sqs/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"tests/helpers"
+	mocklogger "tests/mock"
 )
 
 func TestSQSInitFifo(t *testing.T) {
@@ -34,7 +32,7 @@ func TestSQSInitFifo(t *testing.T) {
 		Path:    "configs/.rr-sqs-init_fifo.yaml",
 	}
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err := cont.RegisterAll(
 		l,
 		cfg,
@@ -118,7 +116,7 @@ func TestSQSInitFifo(t *testing.T) {
 func TestSQSInitFifoAutoAck(t *testing.T) {
 	cont := endure.New(slog.LevelDebug)
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	cfg := &config.Plugin{
 		Version: "2023.3.0",
 		Path:    "configs/.rr-sqs-init_fifo_auto_ack.yaml",
@@ -206,7 +204,7 @@ func TestSQSInitBadRespFifo(t *testing.T) {
 		Version: "2023.3.0",
 	}
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err := cont.RegisterAll(
 		l,
 		cfg,
@@ -459,7 +457,7 @@ func TestSQSPrefetch(t *testing.T) {
 		Path:    "configs/.rr-sqs-init_fifo-prefetch.yaml",
 	}
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err := cont.RegisterAll(
 		cfg,
 		&server.Plugin{},

@@ -2,6 +2,7 @@ package sqs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,23 +17,17 @@ import (
 	"testing"
 	"time"
 
-	_ "google.golang.org/genproto/protobuf/ptype" //nolint:revive,nolintlint
-
-	"tests/helpers"
-	mocklogger "tests/mock"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	sqsConf "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/goccy/go-json"
 	jobsProto "github.com/roadrunner-server/api/v4/build/jobs/v1"
 	jobState "github.com/roadrunner-server/api/v4/plugins/v4/jobs"
 	"github.com/roadrunner-server/config/v5"
 	"github.com/roadrunner-server/endure/v2"
-	goridgeRpc "github.com/roadrunner-server/goridge/v3/pkg/rpc"
+	goridgeRpc "github.com/roadrunner-server/goridge/v4/pkg/rpc"
 	"github.com/roadrunner-server/informer/v5"
 	"github.com/roadrunner-server/jobs/v5"
 	"github.com/roadrunner-server/logger/v5"
@@ -43,7 +38,9 @@ import (
 	sqsPlugin "github.com/roadrunner-server/sqs/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	_ "google.golang.org/genproto/protobuf/ptype" //nolint:revive,nolintlint
+	"tests/helpers"
+	mocklogger "tests/mock"
 )
 
 func TestSQSInit(t *testing.T) {
@@ -134,7 +131,7 @@ func TestSQSRemovePQ(t *testing.T) {
 		Path:    "configs/.rr-sqs-pq.yaml",
 	}
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err := cont.RegisterAll(
 		cfg,
 		&server.Plugin{},
@@ -229,7 +226,7 @@ func TestSQSAutoAck(t *testing.T) {
 		helpers.DeleteQueues(t, "sqs-auto-ack-1", "sqs-auto-ack-2")
 	})
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err := cont.RegisterAll(
 		cfg,
 		&server.Plugin{},
@@ -394,7 +391,7 @@ func TestSQSInitBadResp(t *testing.T) {
 		helpers.DeleteQueues(t, "sqs-init-br-1", "sqs-init-br-2")
 	})
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err := cont.RegisterAll(
 		cfg,
 		&server.Plugin{},
@@ -646,7 +643,7 @@ func TestSQSApproximateReceiveCount(t *testing.T) {
 		helpers.DeleteQueues(t, "sqs-read-approximate-count")
 	})
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err := cont.RegisterAll(
 		cfg,
 		&server.Plugin{},
@@ -850,7 +847,7 @@ func TestSQSRawPayload(t *testing.T) {
 		helpers.DeleteQueues(t, "sqs-raw-payload")
 	})
 
-	l, oLogger := mocklogger.ZapTestLogger(zap.DebugLevel)
+	l, oLogger := mocklogger.SlogTestLogger(slog.LevelDebug)
 	err := cont.RegisterAll(
 		cfg,
 		&server.Plugin{},
