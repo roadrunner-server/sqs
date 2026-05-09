@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/roadrunner-server/api-plugins/v6/jobs"
 	"github.com/roadrunner-server/errors"
-	"go.uber.org/zap"
 
 	stderr "errors"
 )
@@ -320,7 +319,7 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 	if _, ok := msg.MessageAttributes[jobs.RRHeaders]; ok {
 		err := json.Unmarshal(msg.MessageAttributes[jobs.RRHeaders].BinaryValue, &h)
 		if err != nil {
-			c.log.Debug("failed to unpack the headers, not a JSON", zap.Error(err))
+			c.log.Debug("failed to unpack the headers, not a JSON", "error", err)
 		}
 	} else {
 		h = convAttr(msg.Attributes)
@@ -331,7 +330,7 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 	if _, ok := msg.MessageAttributes[jobs.RRDelay]; ok {
 		dl, err = strconv.Atoi(*msg.MessageAttributes[jobs.RRDelay].StringValue)
 		if err != nil {
-			c.log.Debug("failed to unpack the delay, not a number", zap.Error(err))
+			c.log.Debug("failed to unpack the delay, not a number", "error", err)
 		}
 	}
 
@@ -340,7 +339,7 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 		priority, err = strconv.Atoi(*msg.MessageAttributes[jobs.RRPriority].StringValue)
 		if err != nil {
 			priority = int((*c.pipeline.Load()).Priority())
-			c.log.Debug("failed to unpack the priority; inheriting the pipeline's default priority", zap.Error(err))
+			c.log.Debug("failed to unpack the priority; inheriting the pipeline's default priority", "error", err)
 		}
 	}
 

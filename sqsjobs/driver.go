@@ -3,6 +3,7 @@ package sqsjobs
 import (
 	"context"
 	stderr "errors"
+	"log/slog"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -22,7 +23,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 const (
@@ -47,7 +47,7 @@ type Driver struct {
 	msgInFlightLimit *int32
 
 	pq          jobs.Queue
-	log         *zap.Logger
+	log         *slog.Logger
 	pipeline    atomic.Pointer[jobs.Pipeline]
 	skipDeclare bool
 
@@ -80,7 +80,7 @@ type Driver struct {
 	pauseCh chan struct{}
 }
 
-func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
+func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pipeline, log *slog.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	// if no such key - error
@@ -162,7 +162,7 @@ func FromConfig(tracer *sdktrace.TracerProvider, configKey string, pipe jobs.Pip
 	return jb, nil
 }
 
-func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *zap.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
+func FromPipeline(tracer *sdktrace.TracerProvider, pipe jobs.Pipeline, log *slog.Logger, cfg Configurer, pq jobs.Queue) (*Driver, error) {
 	const op = errors.Op("new_sqs_consumer")
 
 	if tracer == nil {
@@ -307,7 +307,7 @@ func (c *Driver) Run(ctx context.Context, p jobs.Pipeline) error {
 	ctxCancel, c.cancel = context.WithCancel(context.Background())
 	c.listen(ctxCancel)
 
-	c.log.Debug("pipeline was started", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", start), zap.Int64("elapsed", time.Since(start).Milliseconds()))
+	c.log.Debug("pipeline was started", "driver", pipe.Driver(), "pipeline", pipe.Name(), "start", start, "elapsed", time.Since(start).Milliseconds())
 	return nil
 }
 
@@ -331,7 +331,7 @@ func (c *Driver) Stop(ctx context.Context) error {
 		c.pauseCh <- struct{}{}
 	}
 
-	c.log.Debug("pipeline was stopped", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now().UTC()), zap.Int64("elapsed", time.Since(start).Milliseconds()))
+	c.log.Debug("pipeline was stopped", "driver", pipe.Driver(), "pipeline", pipe.Name(), "start", time.Now().UTC(), "elapsed", time.Since(start).Milliseconds())
 	return nil
 }
 
@@ -364,7 +364,7 @@ func (c *Driver) Pause(ctx context.Context, p string) error {
 	// if blocked, let 1 item to pass to unblock the listener and close the pipe
 	c.cond.Signal()
 
-	c.log.Debug("pipeline was paused", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now().UTC()), zap.Int64("elapsed", time.Since(start).Milliseconds()))
+	c.log.Debug("pipeline was paused", "driver", pipe.Driver(), "pipeline", pipe.Name(), "start", time.Now().UTC(), "elapsed", time.Since(start).Milliseconds())
 
 	return nil
 }
@@ -397,7 +397,7 @@ func (c *Driver) Resume(ctx context.Context, p string) error {
 
 	// increase num of listeners
 	atomic.AddUint32(&c.listeners, 1)
-	c.log.Debug("pipeline was resumed", zap.String("driver", pipe.Driver()), zap.String("pipeline", pipe.Name()), zap.Time("start", time.Now().UTC()), zap.Int64("elapsed", time.Since(start).Milliseconds()))
+	c.log.Debug("pipeline was resumed", "driver", pipe.Driver(), "pipeline", pipe.Name(), "start", time.Now().UTC(), "elapsed", time.Since(start).Milliseconds())
 
 	return nil
 }

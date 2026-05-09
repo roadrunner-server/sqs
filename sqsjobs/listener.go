@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go"
 	"go.opentelemetry.io/otel/propagation"
-	"go.uber.org/zap"
 )
 
 const (
@@ -42,37 +41,37 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 
 				if err != nil { //nolint:nestif
 					if c.skipDeclare {
-						c.log.Error("receive message", zap.Error(err))
+						c.log.Error("receive message", "error", err)
 						continue
 					}
 
 					var oErr *smithy.OperationError
 					if !errors.As(err, &oErr) {
-						c.log.Error("receive message", zap.Error(err))
+						c.log.Error("receive message", "error", err)
 						continue
 					}
 
 					var rErr *http.ResponseError
 					if !errors.As(oErr.Err, &rErr) {
-						c.log.Error("receive message", zap.Error(err))
+						c.log.Error("receive message", "error", err)
 						continue
 					}
 
 					var apiErr *smithy.GenericAPIError
 					if !errors.As(rErr.Err, &apiErr) {
-						c.log.Error("receive message", zap.Error(err))
+						c.log.Error("receive message", "error", err)
 						continue
 					}
 
 					if apiErr.Code != NonExistentQueue {
-						c.log.Error("receive message", zap.Error(err))
+						c.log.Error("receive message", "error", err)
 						continue
 					}
 
-					c.log.Error("receive message", zap.String("error code", apiErr.ErrorCode()), zap.String("message", apiErr.ErrorMessage()), zap.String("error fault", apiErr.ErrorFault().String()))
+					c.log.Error("receive message", "error code", apiErr.ErrorCode(), "message", apiErr.ErrorMessage(), "error fault", apiErr.ErrorFault().String())
 					_, err = c.client.CreateQueue(ctx, &sqs.CreateQueueInput{QueueName: c.queue, Attributes: c.attributes, Tags: c.tags})
 					if err != nil {
-						c.log.Error("create queue", zap.Error(err))
+						c.log.Error("create queue", "error", err)
 					}
 
 					// To successfully create a new queue, you must provide a
@@ -89,12 +88,12 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 					c.cond.L.Lock()
 					// lock when we hit the limit
 					for atomic.LoadInt64(c.msgInFlight) >= int64(atomic.LoadInt32(c.msgInFlightLimit)) {
-						c.log.Debug("prefetch limit was reached, waiting for the jobs to be processed", zap.Int64("current", atomic.LoadInt64(c.msgInFlight)), zap.Int32("limit", atomic.LoadInt32(c.msgInFlightLimit)))
+						c.log.Debug("prefetch limit was reached, waiting for the jobs to be processed", "current", atomic.LoadInt64(c.msgInFlight), "limit", atomic.LoadInt32(c.msgInFlightLimit))
 						c.cond.Wait()
 					}
 
 					m := message.Messages[i]
-					c.log.Debug("receive message", zap.Stringp("ID", m.MessageId))
+					c.log.Debug("receive message", "ID", m.MessageId)
 					item := c.unpack(&m)
 
 					ctxspan, span := c.tracer.Tracer(tracerName).Start(c.prop.Extract(ctx, propagation.HeaderCarrier(item.headers)), "sqs_listener")
@@ -107,7 +106,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 						})
 						if errD != nil {
 							cancel()
-							c.log.Error("message unpack, failed to delete the message from the queue", zap.Error(errD))
+							c.log.Error("message unpack, failed to delete the message from the queue", "error", errD)
 							c.cond.L.Unlock()
 
 							span.RecordError(errD)
@@ -134,7 +133,7 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 					c.pq.Insert(item)
 					// increase the current number of messages
 					atomic.AddInt64(c.msgInFlight, 1)
-					c.log.Debug("message pushed to the priority queue", zap.Int64("current", atomic.LoadInt64(c.msgInFlight)), zap.Int32("limit", atomic.LoadInt32(c.msgInFlightLimit)))
+					c.log.Debug("message pushed to the priority queue", "current", atomic.LoadInt64(c.msgInFlight), "limit", atomic.LoadInt32(c.msgInFlightLimit))
 					c.cond.L.Unlock()
 					span.End()
 				}

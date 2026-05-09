@@ -1,6 +1,8 @@
 package sqs
 
 import (
+	"log/slog"
+
 	_ "google.golang.org/genproto/protobuf/ptype" //nolint:revive,nolintlint
 
 	"github.com/roadrunner-server/api-plugins/v6/jobs"
@@ -8,7 +10,6 @@ import (
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/sqs/v6/sqsjobs"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.uber.org/zap"
 )
 
 const (
@@ -19,7 +20,7 @@ const (
 type Plugin struct {
 	tracer *sdktrace.TracerProvider
 
-	log *zap.Logger
+	log *slog.Logger
 	cfg Configurer
 }
 
@@ -35,7 +36,7 @@ type Tracer interface {
 }
 
 type Logger interface {
-	NamedLogger(name string) *zap.Logger
+	NamedLogger(name string) *slog.Logger
 }
 
 func (p *Plugin) Init(log Logger, cfg Configurer) error {
