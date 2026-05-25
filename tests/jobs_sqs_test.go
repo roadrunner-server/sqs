@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
-	"net/rpc"
 	"os"
 	"os/signal"
 	"sort"
@@ -17,17 +15,18 @@ import (
 	"testing"
 	"time"
 
+	"tests/helpers"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	sqsConf "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	jobsProto "github.com/roadrunner-server/api/v4/build/jobs/v1"
-	jobState "github.com/roadrunner-server/api/v4/plugins/v4/jobs"
+	jobsProto "github.com/roadrunner-server/api-go/v6/jobs/v2"
+	jobState "github.com/roadrunner-server/api-plugins/v6/jobs"
 	"github.com/roadrunner-server/config/v6"
 	"github.com/roadrunner-server/endure/v2"
-	goridgeRpc "github.com/roadrunner-server/goridge/v4/pkg/rpc"
 	"github.com/roadrunner-server/informer/v6"
 	"github.com/roadrunner-server/jobs/v6"
 	"github.com/roadrunner-server/logger/v6"
@@ -39,8 +38,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	_ "google.golang.org/genproto/protobuf/ptype" //nolint:revive,nolintlint
-	"tests/helpers"
+
 	mocklogger "tests/mock"
+
+	"connectrpc.com/connect"
 )
 
 func TestSQSInit(t *testing.T) {
@@ -1069,11 +1070,8 @@ func getQueueURL(client *sqs.Client, queueName string) (*string, error) {
 
 func declareSQSPipe(queue string, address string, pipeline string) func(t *testing.T) {
 	return func(t *testing.T) {
-		conn, err := net.Dial("tcp", address)
-		assert.NoError(t, err)
-		client := rpc.NewClientWithCodec(goridgeRpc.NewClientCodec(conn))
-
-		pipe := &jobsProto.DeclareRequest{Pipeline: map[string]string{
+		client := helpers.NewJobsClient(t, address)
+		req := &jobsProto.DeclareRequest{Pipeline: map[string]string{
 			"driver":             "sqs",
 			"name":               pipeline,
 			"queue":              queue,
@@ -1083,20 +1081,15 @@ func declareSQSPipe(queue string, address string, pipeline string) func(t *testi
 			"wait_time_seconds":  "3",
 			"tags":               `{"key":"value"}`,
 		}}
-
-		er := &jobsProto.Empty{}
-		err = client.Call("jobs.Declare", pipe, er)
+		_, err := client.Declare(t.Context(), connect.NewRequest(req))
 		assert.NoError(t, err)
 	}
 }
 
 func declareSQSPipeFifo(queue, address string) func(t *testing.T) {
 	return func(t *testing.T) {
-		conn, err := net.Dial("tcp", address)
-		assert.NoError(t, err)
-		client := rpc.NewClientWithCodec(goridgeRpc.NewClientCodec(conn))
-
-		pipe := &jobsProto.DeclareRequest{Pipeline: map[string]string{
+		client := helpers.NewJobsClient(t, address)
+		req := &jobsProto.DeclareRequest{Pipeline: map[string]string{
 			"driver":             "sqs",
 			"name":               "test-3",
 			"queue":              queue,
@@ -1108,9 +1101,7 @@ func declareSQSPipeFifo(queue, address string) func(t *testing.T) {
 			"attributes":         `{"FifoQueue":"true"}`,
 			"tags":               `{"key":"value"}`,
 		}}
-
-		er := &jobsProto.Empty{}
-		err = client.Call("jobs.Declare", pipe, er)
+		_, err := client.Declare(t.Context(), connect.NewRequest(req))
 		assert.NoError(t, err)
 	}
 }

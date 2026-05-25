@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"tests/helpers"
+	mocklogger "tests/mock"
+
 	"github.com/roadrunner-server/config/v6"
 	"github.com/roadrunner-server/endure/v2"
 	"github.com/roadrunner-server/informer/v6"
@@ -20,8 +23,6 @@ import (
 	"github.com/roadrunner-server/sqs/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"tests/helpers"
-	mocklogger "tests/mock"
 )
 
 func TestSQSInitFifo(t *testing.T) {
