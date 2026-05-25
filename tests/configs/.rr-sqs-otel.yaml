@@ -6,15 +6,6 @@ rpc:
 server:
   command: "php php_test_files/jobs/jobs_ok.php"
 
-otel:
-  insecure: true
-  compress: false
-  client: http
-  exporter: zipkin
-  service_name: "rr_test_sqs"
-  service_version: "1.0.0"
-  endpoint: "http://127.0.0.1:9411/api/v2/spans"
-
 sqs: { }
 
 logs:
