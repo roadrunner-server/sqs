@@ -18,7 +18,7 @@ jobs:
       cancel-in-progress: true
     strategy:
       matrix:
-        php: [ "8.4" ]
+        php: [ "8.5" ]
         go: [ stable ]
         os: [ "ubuntu-latest" ]
     steps:
