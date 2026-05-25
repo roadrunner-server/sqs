@@ -67,7 +67,7 @@ type Driver struct {
 	retainFailedJobs       bool
 
 	// if a user invokes several resume operations
-	listeners uint32
+	listeners atomic.Uint32
 
 	// queue optional parameters
 	attributes map[string]string
@@ -300,7 +300,7 @@ func (c *Driver) Run(ctx context.Context, p jobs.Pipeline) error {
 		return errors.E(op, errors.Errorf("no such pipeline registered: %s", pipe.Name()))
 	}
 
-	atomic.AddUint32(&c.listeners, 1)
+	c.listeners.Add(1)
 
 	// start listener
 	var ctxCancel context.Context
@@ -321,7 +321,7 @@ func (c *Driver) Stop(ctx context.Context) error {
 	pipe := *c.pipeline.Load()
 	_ = c.pq.Remove(pipe.Name())
 
-	if atomic.LoadUint32(&c.listeners) > 0 {
+	if c.listeners.Load() > 0 {
 		if c.cancel != nil {
 			c.cancel()
 		}
@@ -347,13 +347,13 @@ func (c *Driver) Pause(ctx context.Context, p string) error {
 		return errors.Errorf("no such pipeline: %s", pipe.Name())
 	}
 
-	l := atomic.LoadUint32(&c.listeners)
+	l := c.listeners.Load()
 	// no active listeners
 	if l == 0 {
 		return errors.Str("no active listeners, nothing to pause")
 	}
 
-	atomic.AddUint32(&c.listeners, ^uint32(0))
+	c.listeners.Add(^uint32(0))
 
 	if c.cancel != nil {
 		c.cancel()
@@ -384,7 +384,7 @@ func (c *Driver) Resume(ctx context.Context, p string) error {
 		return errors.Errorf("no such pipeline: %s", pipe.Name())
 	}
 
-	l := atomic.LoadUint32(&c.listeners)
+	l := c.listeners.Load()
 	// no active listeners
 	if l == 1 {
 		return errors.Str("sqs listener is already in the active state")
@@ -396,7 +396,7 @@ func (c *Driver) Resume(ctx context.Context, p string) error {
 	c.listen(ctxCancel)
 
 	// increase num of listeners
-	atomic.AddUint32(&c.listeners, 1)
+	c.listeners.Add(1)
 	c.log.Debug("pipeline was resumed", "driver", pipe.Driver(), "pipeline", pipe.Name(), "start", time.Now().UTC(), "elapsed", time.Since(start).Milliseconds())
 
 	return nil
@@ -428,7 +428,7 @@ func (c *Driver) State(ctx context.Context) (*jobs.State, error) {
 		Pipeline: pipe.Name(),
 		Driver:   pipe.Driver(),
 		Queue:    *c.queueURL,
-		Ready:    ready(atomic.LoadUint32(&c.listeners)),
+		Ready:    ready(c.listeners.Load()),
 	}
 
 	nom, err := strconv.Atoi(attr.Attributes[string(types.QueueAttributeNameApproximateNumberOfMessages)])
@@ -530,8 +530,7 @@ func createQueue(client *sqs.Client, queueName *string, attributes map[string]st
 	defer cancel()
 	out, err := client.CreateQueue(ctx, &sqs.CreateQueueInput{QueueName: queueName, Attributes: attributes, Tags: tags})
 	if err != nil {
-		var qErr *types.QueueNameExists
-		if stderr.As(err, &qErr) {
+		if _, ok := stderr.AsType[*types.QueueNameExists](err); ok {
 			// Queue already exists; return existing URL instead.
 			return getQueueURL(client, queueName)
 		}
