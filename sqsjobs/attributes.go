@@ -59,18 +59,18 @@ const (
 
 // toAwsAttribute maps attributes to its AWS values
 func toAwsAttribute(attrs map[string]string, ret map[string]string) { //nolint:gocyclo
-	for k := range attrs {
+	for k, v := range attrs {
 		switch k {
 		case SqsManagedSseEnabled:
-			ret[SqsManagedSseEnabledAWS] = attrs[k]
+			ret[SqsManagedSseEnabledAWS] = v
 		case RedriveAllowPolicy:
-			ret[RedriveAllowPolicyAWS] = attrs[k]
+			ret[RedriveAllowPolicyAWS] = v
 		case FifoThroughputLimit:
 			/*
 				FifoThroughputLimit – Specifies whether the FIFO queue throughput quota applies to the entire queue or per message group.
 				Valid values are perQueue and perMessageGroupId. The perMessageGroupId value is allowed only when the value for DeduplicationScope is messageGroup.
 			*/
-			switch attrs[k] {
+			switch v {
 			case perQueue:
 				ret[FifoThroughputLimitAWS] = perQueueAWS
 			case perMessageGroupID:
@@ -79,43 +79,43 @@ func toAwsAttribute(attrs map[string]string, ret map[string]string) { //nolint:g
 		case DeduplicationScope:
 			// DeduplicationScope – Specifies whether message deduplication occurs at the
 			// message group or queue level. Valid values are messageGroup and queue.
-			if attrs[k] == messageGroup {
+			if v == messageGroup {
 				ret[DeduplicationScopeAWS] = messageGroupAWS
 			}
 		case KmsDataKeyReusePeriodSeconds:
-			ret[KmsDataKeyReusePeriodSecondsAWS] = attrs[k]
+			ret[KmsDataKeyReusePeriodSecondsAWS] = v
 		case KmsMasterKeyID:
-			ret[KmsMasterKeyIDAWS] = attrs[k]
+			ret[KmsMasterKeyIDAWS] = v
 		case ContentBasedDeduplication:
-			ret[ContentBasedDeduplicationAWS] = attrs[k]
+			ret[ContentBasedDeduplicationAWS] = v
 		case FifoQueue:
-			ret[FifoQueueAWS] = attrs[k]
+			ret[FifoQueueAWS] = v
 		case RedrivePolicy:
-			ret[RedrivePolicyAWS] = attrs[k]
+			ret[RedrivePolicyAWS] = v
 		case DelaySeconds:
-			ret[DelaySecondsAWS] = attrs[k]
+			ret[DelaySecondsAWS] = v
 		case ApproximateNumberOfMessagesDelayed:
-			ret[ApproximateNumberOfMessagesDelayedAWS] = attrs[k]
+			ret[ApproximateNumberOfMessagesDelayedAWS] = v
 		case QueueArn:
-			ret[QueueArnAWS] = attrs[k]
+			ret[QueueArnAWS] = v
 		case LastModifiedTimestamp:
-			ret[LastModifiedTimestampAWS] = attrs[k]
+			ret[LastModifiedTimestampAWS] = v
 		case Policy:
-			ret[PolicyAWS] = attrs[k]
+			ret[PolicyAWS] = v
 		case VisibilityTimeout:
-			ret[VisibilityTimeoutAWS] = attrs[k]
+			ret[VisibilityTimeoutAWS] = v
 		case MaximumMessageSize:
-			ret[MaximumMessageSizeAWS] = attrs[k]
+			ret[MaximumMessageSizeAWS] = v
 		case MessageRetentionPeriod:
-			ret[MessageRetentionPeriodAWS] = attrs[k]
+			ret[MessageRetentionPeriodAWS] = v
 		case ApproximateNumberOfMessages:
-			ret[ApproximateNumberOfMessagesAWS] = attrs[k]
+			ret[ApproximateNumberOfMessagesAWS] = v
 		case ApproximateNumberOfMessagesNotVisible:
-			ret[ApproximateNumberOfMessagesNotVisibleAWS] = attrs[k]
+			ret[ApproximateNumberOfMessagesNotVisibleAWS] = v
 		case CreatedTimestamp:
-			ret[CreatedTimestampAWS] = attrs[k]
+			ret[CreatedTimestampAWS] = v
 		case ReceiveMessageWaitTimeSeconds:
-			ret[ReceiveMessageWaitTimeSecondsAWS] = attrs[k]
+			ret[ReceiveMessageWaitTimeSecondsAWS] = v
 		default:
 			continue
 		}

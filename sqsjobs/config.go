@@ -172,11 +172,7 @@ func (c *Config) InitDefault() {
 	if c.Attributes != nil {
 		newAttr := make(map[string]string, len(c.Attributes))
 		toAwsAttribute(c.Attributes, newAttr)
-		// clear old map
-		for k := range c.Attributes {
-			delete(c.Attributes, k)
-		}
-
+		clear(c.Attributes)
 		c.Attributes = newAttr
 	} else {
 		c.Attributes = make(map[string]string)

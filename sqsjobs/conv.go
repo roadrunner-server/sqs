@@ -8,28 +8,27 @@ import (
 func convAttr(h map[string]string) map[string][]string {
 	ret := make(map[string][]string, len(h))
 
-	for k := range h {
-		ret[k] = []string{
-			h[k],
-		}
+	for k, v := range h {
+		ret[k] = []string{v}
 	}
 
 	return ret
 }
 
-func convMessageAttr(h map[string]types.MessageAttributeValue, curr *map[string][]string) {
-	var check = map[string]struct{}{
-		jobs.RRJob:      {},
-		jobs.RRID:       {},
-		jobs.RRDelay:    {},
-		jobs.RRAutoAck:  {},
-		jobs.RRPriority: {},
-		jobs.RRPipeline: {},
-		jobs.RRHeaders:  {},
-	}
+// rrKeys is the set of RoadRunner-owned MessageAttribute keys excluded from header copy.
+var rrKeys = map[string]struct{}{ //nolint:gochecknoglobals
+	jobs.RRJob:      {},
+	jobs.RRID:       {},
+	jobs.RRDelay:    {},
+	jobs.RRAutoAck:  {},
+	jobs.RRPriority: {},
+	jobs.RRPipeline: {},
+	jobs.RRHeaders:  {},
+}
 
+func convMessageAttr(h map[string]types.MessageAttributeValue, curr *map[string][]string) {
 	for k, v := range h {
-		if _, ok := check[k]; ok {
+		if _, ok := rrKeys[k]; ok {
 			continue
 		}
 

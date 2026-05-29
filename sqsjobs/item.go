@@ -67,8 +67,8 @@ type Options struct {
 
 	// Private ================
 	cond           *sync.Cond
-	stopped        *uint64
-	msgInFlight    *int64
+	stopped        *atomic.Uint64
+	msgInFlight    *atomic.Int64
 	queue          *string
 	receiptHandler *string
 	client         *sqs.Client
@@ -130,12 +130,12 @@ func (i *Item) Context() ([]byte, error) {
 }
 
 func (i *Item) Ack() error {
-	if atomic.LoadUint64(i.Options.stopped) == 1 {
+	if i.Options.stopped.Load() == 1 {
 		return errors.Str(pipelineStoppedError)
 	}
 	defer func() {
 		i.Options.cond.Signal()
-		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+		i.Options.msgInFlight.Add(-1)
 	}()
 	// just return in case of auto-ack
 	if i.Options.AutoAck {
@@ -145,29 +145,19 @@ func (i *Item) Ack() error {
 		QueueUrl:      i.Options.queue,
 		ReceiptHandle: i.Options.receiptHandler,
 	})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (i *Item) commonNack(requeue bool, delay int) error {
 	if requeue {
 		// requeue message
 		// Note: Requeue checks for pipeline stop and decrements in-flight messages on its own
-		err := i.Requeue(nil, delay)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return i.Requeue(nil, delay)
 	}
 
 	defer func() {
 		i.Options.cond.Signal()
-		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+		i.Options.msgInFlight.Add(-1)
 	}()
 
 	// message already deleted
@@ -216,7 +206,7 @@ func (i *Item) commonNack(requeue bool, delay int) error {
 
 func (i *Item) Nack() error {
 	// return error if the pipeline was already stopped
-	if atomic.LoadUint64(i.Options.stopped) == 1 {
+	if i.Options.stopped.Load() == 1 {
 		return errors.Str(pipelineStoppedError)
 	}
 
@@ -225,7 +215,7 @@ func (i *Item) Nack() error {
 
 func (i *Item) NackWithOptions(requeue bool, delay int) error {
 	// return error if the pipeline was already stopped
-	if atomic.LoadUint64(i.Options.stopped) == 1 {
+	if i.Options.stopped.Load() == 1 {
 		return errors.Str(pipelineStoppedError)
 	}
 
@@ -233,13 +223,13 @@ func (i *Item) NackWithOptions(requeue bool, delay int) error {
 }
 
 func (i *Item) Requeue(headers map[string][]string, delay int) error {
-	if atomic.LoadUint64(i.Options.stopped) == 1 {
+	if i.Options.stopped.Load() == 1 {
 		return errors.Str(pipelineStoppedError)
 	}
 
 	defer func() {
 		i.Options.cond.Signal()
-		atomic.AddInt64(i.Options.msgInFlight, ^int64(0))
+		i.Options.msgInFlight.Add(-1)
 	}()
 
 	// overwrite the delay
@@ -308,7 +298,7 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 			jobs.RRDelay:    {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(strconv.Itoa(i.Options.Delay))},
 			jobs.RRHeaders:  {DataType: aws.String(BinaryType), BinaryValue: data, BinaryListValues: nil, StringListValues: nil, StringValue: nil},
 			jobs.RRPriority: {DataType: aws.String(NumberType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(strconv.Itoa(int(i.Options.Priority)))},
-			jobs.RRAutoAck:  {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(btos(i.Options.AutoAck))},
+			jobs.RRAutoAck:  {DataType: aws.String(StringType), BinaryValue: nil, BinaryListValues: nil, StringListValues: nil, StringValue: aws.String(strconv.FormatBool(i.Options.AutoAck))},
 		},
 	}, nil
 }
@@ -334,8 +324,8 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 	}
 
 	var priority int
-	if _, ok := msg.Attributes[jobs.RRPriority]; ok {
-		priority, err = strconv.Atoi(*msg.MessageAttributes[jobs.RRPriority].StringValue)
+	if attr, ok := msg.MessageAttributes[jobs.RRPriority]; ok {
+		priority, err = strconv.Atoi(aws.ToString(attr.StringValue))
 		if err != nil {
 			priority = int((*c.pipeline.Load()).Priority())
 			c.log.Debug("failed to unpack the priority; inheriting the pipeline's default priority", "error", err)
@@ -345,7 +335,7 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 	// for the existing messages, auto_ack field might be absent
 	var autoAck bool
 	if aa, ok := msg.MessageAttributes[jobs.RRAutoAck]; ok {
-		autoAck = stob(aa.StringValue)
+		autoAck, _ = strconv.ParseBool(aws.ToString(aa.StringValue))
 	}
 
 	var rrj string
@@ -367,14 +357,14 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 	return &Item{
 		Job:     rrj,
 		Ident:   rrid,
-		Payload: []byte(getordefault(msg.Body)),
+		Payload: []byte(aws.ToString(msg.Body)),
 		headers: h,
 		Options: &Options{
 			AutoAck:                autoAck,
 			Delay:                  dl,
 			Priority:               int64(priority),
 			Pipeline:               (*c.pipeline.Load()).Name(),
-			Queue:                  getordefault(c.queue),
+			Queue:                  aws.ToString(c.queue),
 			ErrorVisibilityTimeout: c.errorVisibilityTimeout,
 			RetainFailedJobs:       c.retainFailedJobs,
 
@@ -384,7 +374,7 @@ func (c *Driver) unpack(msg *types.Message) *Item {
 			receiptHandler: msg.ReceiptHandle,
 			requeueFn:      c.handleItem,
 			// 2.12.1
-			msgInFlight: c.msgInFlight,
+			msgInFlight: &c.msgInFlight,
 			cond:        &c.cond,
 			// 2023.2
 			stopped: &c.stopped,
@@ -417,27 +407,4 @@ func delay(origQueue *string, delay int32) int32 {
 	}
 
 	return delay
-}
-
-func btos(b bool) string {
-	if b {
-		return "true"
-	}
-
-	return "false"
-}
-
-func stob(s *string) bool {
-	if s != nil {
-		return *s == "true"
-	}
-
-	return false
-}
-
-func getordefault(body *string) string {
-	if body == nil {
-		return ""
-	}
-	return *body
 }

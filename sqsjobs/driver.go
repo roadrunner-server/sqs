@@ -43,8 +43,8 @@ type Configurer interface {
 type Driver struct {
 	mu               sync.Mutex
 	cond             sync.Cond
-	msgInFlight      *int64
-	msgInFlightLimit *int32
+	msgInFlight      atomic.Int64
+	msgInFlightLimit atomic.Int32
 
 	pq          jobs.Queue
 	log         *slog.Logger
@@ -76,7 +76,7 @@ type Driver struct {
 	client   *sqs.Client
 	queueURL *string
 
-	stopped uint64
+	stopped atomic.Uint64
 	pauseCh chan struct{}
 }
 
@@ -132,10 +132,9 @@ func FromConfig(_ context.Context, tracer *sdktrace.TracerProvider, configKey st
 		waitTime:               conf.WaitTimeSeconds,
 		prefetch:               conf.Prefetch,
 		pauseCh:                make(chan struct{}, 1),
-		// new in 2.12.1
-		msgInFlightLimit: &conf.MaxMsgInFlightLimit,
-		msgInFlight:      new(int64(0)),
 	}
+	// new in 2.12.1
+	jb.msgInFlightLimit.Store(conf.MaxMsgInFlightLimit)
 
 	// PARSE CONFIGURATION -------
 	jb.client, err = checkEnv(conf.Key, conf.Secret, conf.SessionToken, conf.Endpoint, conf.Region)
@@ -206,8 +205,8 @@ func FromPipeline(_ context.Context, tracer *sdktrace.TracerProvider, pipe jobs.
 		wt = int(maxWaitTime)
 	}
 
-	pref := int32(pipe.Int(prefetch, 1))                             //nolint:gosec
-	msgInFl := new(int32(pipe.Int(maxMsgsInFlightLimit, int(pref)))) //nolint:gosec
+	pref := int32(pipe.Int(prefetch, 1))                        //nolint:gosec
+	msgInFl := int32(pipe.Int(maxMsgsInFlightLimit, int(pref))) //nolint:gosec
 
 	// initialize job Driver
 	jb := &Driver{
@@ -227,11 +226,9 @@ func FromPipeline(_ context.Context, tracer *sdktrace.TracerProvider, pipe jobs.
 		waitTime:               int32(wt),
 		prefetch:               pref,
 		pauseCh:                make(chan struct{}, 1),
-		// new in 2.12.1
-		// default - prefetch
-		msgInFlightLimit: msgInFl, //nolin:gosec
-		msgInFlight:      new(int64(0)),
 	}
+	// new in 2.12.1, default - prefetch
+	jb.msgInFlightLimit.Store(msgInFl)
 
 	// PARSE CONFIGURATION -------
 
@@ -303,8 +300,8 @@ func (c *Driver) Run(ctx context.Context, p jobs.Pipeline) error {
 	c.listeners.Add(1)
 
 	// start listener
-	var ctxCancel context.Context
-	ctxCancel, c.cancel = context.WithCancel(context.Background())
+	ctxCancel, cancel := context.WithCancel(context.Background())
+	c.cancel = cancel
 	c.listen(ctxCancel)
 
 	c.log.Debug("pipeline was started", "driver", pipe.Driver(), "pipeline", pipe.Name(), "start", start, "elapsed", time.Since(start).Milliseconds())
@@ -317,7 +314,7 @@ func (c *Driver) Stop(ctx context.Context) error {
 	_, span := trace.SpanFromContext(ctx).TracerProvider().Tracer(tracerName).Start(ctx, "sqs_stop")
 	defer span.End()
 
-	atomic.StoreUint64(&c.stopped, 1)
+	c.stopped.Store(1)
 	pipe := *c.pipeline.Load()
 	_ = c.pq.Remove(pipe.Name())
 
@@ -391,8 +388,8 @@ func (c *Driver) Resume(ctx context.Context, p string) error {
 	}
 
 	// start listener
-	var ctxCancel context.Context
-	ctxCancel, c.cancel = context.WithCancel(context.Background())
+	ctxCancel, cancel := context.WithCancel(context.Background())
+	c.cancel = cancel
 	c.listen(ctxCancel)
 
 	// increase num of listeners
@@ -428,7 +425,7 @@ func (c *Driver) State(ctx context.Context) (*jobs.State, error) {
 		Pipeline: pipe.Name(),
 		Driver:   pipe.Driver(),
 		Queue:    *c.queueURL,
-		Ready:    ready(c.listeners.Load()),
+		Ready:    c.listeners.Load() > 0,
 	}
 
 	nom, err := strconv.Atoi(attr.Attributes[string(types.QueueAttributeNameApproximateNumberOfMessages)])
@@ -458,11 +455,7 @@ func (c *Driver) handleItem(ctx context.Context, msg *Item) error {
 	}
 
 	_, err = c.client.SendMessage(ctx, d)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func checkEnv(key, secret, sessionToken, endpoint, region string) (*sqs.Client, error) {
@@ -471,7 +464,7 @@ func checkEnv(key, secret, sessionToken, endpoint, region string) (*sqs.Client, 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	opts := make([]func(*config.LoadOptions) error, 0, 1)
+	opts := make([]func(*config.LoadOptions) error, 0, 3)
 
 	if region != "" {
 		opts = append(opts, config.WithRegion(region))
@@ -509,20 +502,12 @@ func checkEnv(key, secret, sessionToken, endpoint, region string) (*sqs.Client, 
 
 func manageQueue(jb *Driver) error {
 	var err error
-	switch jb.skipDeclare {
-	case true:
+	if jb.skipDeclare {
 		jb.queueURL, err = getQueueURL(jb.client, jb.queue)
-		if err != nil {
-			return err
-		}
-	case false:
+	} else {
 		jb.queueURL, err = createQueue(jb.client, jb.queue, jb.attributes, jb.tags)
-		if err != nil {
-			return err
-		}
 	}
-
-	return nil
+	return err
 }
 
 func createQueue(client *sqs.Client, queueName *string, attributes map[string]string, tags map[string]string) (*string, error) {
@@ -550,10 +535,6 @@ func getQueueURL(client *sqs.Client, queueName *string) (*string, error) {
 	}
 
 	return out.QueueUrl, nil
-}
-
-func ready(r uint32) bool {
-	return r > 0
 }
 
 func bytesToStr(data []byte) string {
