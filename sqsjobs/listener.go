@@ -3,7 +3,6 @@ package sqsjobs
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws/transport/http"
@@ -87,8 +86,8 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 				for i := range message.Messages {
 					c.cond.L.Lock()
 					// lock when we hit the limit
-					for atomic.LoadInt64(c.msgInFlight) >= int64(atomic.LoadInt32(c.msgInFlightLimit)) {
-						c.log.Debug("prefetch limit was reached, waiting for the jobs to be processed", "current", atomic.LoadInt64(c.msgInFlight), "limit", atomic.LoadInt32(c.msgInFlightLimit))
+					for c.msgInFlight.Load() >= int64(c.msgInFlightLimit.Load()) {
+						c.log.Debug("prefetch limit was reached, waiting for the jobs to be processed", "current", c.msgInFlight.Load(), "limit", c.msgInFlightLimit.Load())
 						c.cond.Wait()
 					}
 
@@ -116,7 +115,6 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 						cancel()
 
 						c.log.Debug("auto ack is turned on, message acknowledged")
-						span.End()
 					}
 
 					if item.headers == nil {
@@ -132,8 +130,8 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 
 					c.pq.Insert(item)
 					// increase the current number of messages
-					atomic.AddInt64(c.msgInFlight, 1)
-					c.log.Debug("message pushed to the priority queue", "current", atomic.LoadInt64(c.msgInFlight), "limit", atomic.LoadInt32(c.msgInFlightLimit))
+					c.msgInFlight.Add(1)
+					c.log.Debug("message pushed to the priority queue", "current", c.msgInFlight.Load(), "limit", c.msgInFlightLimit.Load())
 					c.cond.L.Unlock()
 					span.End()
 				}
