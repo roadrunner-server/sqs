@@ -115,7 +115,6 @@ func (c *Driver) listen(ctx context.Context) { //nolint:gocognit
 						cancel()
 
 						c.log.Debug("auto ack is turned on, message acknowledged")
-						// span.End() called below
 					}
 
 					if item.headers == nil {
