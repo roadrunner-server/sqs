@@ -205,12 +205,12 @@ func FromPipeline(_ context.Context, tracer *sdktrace.TracerProvider, pipe jobs.
 		wt = int(maxWaitTime)
 	}
 
-	pref := int32(pipe.Int(prefetch, 1)) //nolint:gosec
-	// a non-positive prefetch would make the listener block on the in-flight
-	// limit before consuming the first message
-	if pref < 1 {
-		pref = 1
-	}
+	pref := max(
+		// a non-positive prefetch would make the listener block on the in-flight
+		// limit before consuming the first message
+		//
+		//nolint:gosec
+		int32(pipe.Int(prefetch, 1)), 1)
 
 	msgInFl := int32(pipe.Int(maxMsgsInFlightLimit, int(pref))) //nolint:gosec
 	// default/clamp to the prefetch value so a non-positive limit can't wedge consumption
