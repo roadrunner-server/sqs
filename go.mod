@@ -5,11 +5,11 @@ go 1.26
 toolchain go1.26.4
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.42.0
+	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.25
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.24
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.44.0
-	github.com/aws/smithy-go v1.27.2
+	github.com/aws/smithy-go v1.27.3
 	github.com/google/uuid v1.6.0
 	github.com/roadrunner-server/api-plugins/v6 v6.0.0-beta.2
 	github.com/roadrunner-server/endure/v2 v2.6.2
