@@ -2,17 +2,16 @@ package helpers
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
+	"net/rpc"
 	"os"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"connectrpc.com/connect"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	sqsConf "github.com/aws/aws-sdk-go-v2/config"
@@ -20,29 +19,33 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/google/uuid"
 	jobsProto "github.com/roadrunner-server/api-go/v6/jobs/v2"
-	"github.com/roadrunner-server/api-go/v6/jobs/v2/jobsV2connect"
 	jobState "github.com/roadrunner-server/api-plugins/v6/jobs"
+	goridgeRpc "github.com/roadrunner-server/goridge/v4/pkg/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/http2"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func newHTTPClient(t *testing.T) *http.Client {
-	t.Helper()
-	httpc := &http.Client{Transport: &http2.Transport{
-		AllowHTTP: true,
-		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-			return new(net.Dialer).DialContext(ctx, network, addr)
-		},
-	}}
-	t.Cleanup(httpc.CloseIdleConnections)
-	return httpc
-}
+const (
+	push     string = "jobs.Push"
+	pause    string = "jobs.Pause"
+	resume   string = "jobs.Resume"
+	destroy  string = "jobs.Destroy"
+	getStats string = "jobs.GetStats"
+)
 
-func NewJobsClient(t *testing.T, address string) jobsV2connect.JobsServiceClient {
+// NewJobsClient dials the RR RPC endpoint and returns a net/rpc client that
+// speaks the goridge codec, the same transport the jobs plugin serves.
+func NewJobsClient(t *testing.T, address string) *rpc.Client {
 	t.Helper()
-	return jobsV2connect.NewJobsServiceClient(newHTTPClient(t), "http://"+address)
+	// Dial with a background-derived context: NewJobsClient is also used from
+	// t.Cleanup (e.g. DestroyPipelines), where t.Context() is already canceled.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
+	require.NoError(t, err)
+	return rpc.NewClientWithCodec(goridgeRpc.NewClientCodec(conn))
 }
 
 func DeleteQueues(t *testing.T, queueNames ...string) {
@@ -80,7 +83,7 @@ func DeleteQueues(t *testing.T, queueNames ...string) {
 func ResumePipes(address string, pipes ...string) func(t *testing.T) {
 	return func(t *testing.T) {
 		client := NewJobsClient(t, address)
-		_, err := client.Resume(t.Context(), connect.NewRequest(&jobsProto.Pipelines{Pipelines: slices.Clone(pipes)}))
+		err := client.Call(resume, &jobsProto.Pipelines{Pipelines: slices.Clone(pipes)}, &jobsProto.JobsHandlerResponse{})
 		require.NoError(t, err)
 	}
 }
@@ -88,7 +91,7 @@ func ResumePipes(address string, pipes ...string) func(t *testing.T) {
 func PushToPipe(pipeline string, autoAck bool, address string) func(t *testing.T) {
 	return func(t *testing.T) {
 		client := NewJobsClient(t, address)
-		_, err := client.Push(t.Context(), connect.NewRequest(&jobsProto.PushRequest{Job: createDummyJob(pipeline, autoAck)}))
+		err := client.Call(push, &jobsProto.PushRequest{Job: createDummyJob(pipeline, autoAck)}, &jobsProto.JobsHandlerResponse{})
 		require.NoError(t, err)
 	}
 }
@@ -107,7 +110,7 @@ func PushToPipeDelayed(address string, pipeline string, delay int64) func(t *tes
 				Delay:    delay,
 			},
 		}}
-		_, err := client.Push(t.Context(), connect.NewRequest(req))
+		err := client.Call(push, req, &jobsProto.JobsHandlerResponse{})
 		assert.NoError(t, err)
 	}
 }
@@ -130,7 +133,7 @@ func createDummyJob(pipeline string, autoAck bool) *jobsProto.Job {
 func PausePipelines(address string, pipes ...string) func(t *testing.T) {
 	return func(t *testing.T) {
 		client := NewJobsClient(t, address)
-		_, err := client.Pause(t.Context(), connect.NewRequest(&jobsProto.Pipelines{Pipelines: slices.Clone(pipes)}))
+		err := client.Call(pause, &jobsProto.Pipelines{Pipelines: slices.Clone(pipes)}, &jobsProto.JobsHandlerResponse{})
 		assert.NoError(t, err)
 	}
 }
@@ -144,8 +147,7 @@ func DestroyPipelines(address string, pipes ...string) func(t *testing.T) {
 		// without asserting. Some negative tests intentionally destroy
 		// non-existent pipelines and rely on this silent-after-retry pattern.
 		for range 10 {
-			_, err := client.Destroy(t.Context(), connect.NewRequest(req))
-			if err == nil {
+			if err := client.Call(destroy, req, &jobsProto.Pipelines{}); err == nil {
 				return
 			}
 			time.Sleep(time.Second)
@@ -157,12 +159,12 @@ func Stats(address string, state *jobState.State) func(t *testing.T) {
 	return func(t *testing.T) {
 		client := NewJobsClient(t, address)
 
-		resp, err := client.GetStats(t.Context(), connect.NewRequest(&emptypb.Empty{}))
+		out := &jobsProto.Stats{}
+		err := client.Call(getStats, &emptypb.Empty{}, out)
 		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.NotEmpty(t, resp.Msg.GetStats())
+		require.NotEmpty(t, out.GetStats())
 
-		st := resp.Msg.GetStats()[0]
+		st := out.GetStats()[0]
 		state.Queue = st.GetQueue()
 		state.Pipeline = st.GetPipeline()
 		state.Driver = st.GetDriver()

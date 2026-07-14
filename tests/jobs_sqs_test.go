@@ -38,8 +38,6 @@ import (
 	_ "google.golang.org/genproto/protobuf/ptype" //nolint:revive,nolintlint
 
 	mocklogger "tests/mock"
-
-	"connectrpc.com/connect"
 )
 
 // inMemoryTracer satisfies jobs.Tracer for the OTEL test without relying on
@@ -1084,7 +1082,7 @@ func declareSQSPipe(queue string, address string, pipeline string) func(t *testi
 			"wait_time_seconds":  "3",
 			"tags":               `{"key":"value"}`,
 		}}
-		_, err := client.Declare(t.Context(), connect.NewRequest(req))
+		err := client.Call("jobs.Declare", req, &jobsProto.JobsHandlerResponse{})
 		assert.NoError(t, err)
 	}
 }
@@ -1104,7 +1102,7 @@ func declareSQSPipeFifo(queue, address string) func(t *testing.T) {
 			"attributes":         `{"FifoQueue":"true"}`,
 			"tags":               `{"key":"value"}`,
 		}}
-		_, err := client.Declare(t.Context(), connect.NewRequest(req))
+		err := client.Call("jobs.Declare", req, &jobsProto.JobsHandlerResponse{})
 		assert.NoError(t, err)
 	}
 }
