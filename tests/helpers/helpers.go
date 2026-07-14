@@ -45,7 +45,12 @@ func NewJobsClient(t *testing.T, address string) *rpc.Client {
 
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
 	require.NoError(t, err)
-	return rpc.NewClientWithCodec(goridgeRpc.NewClientCodec(conn))
+
+	client := rpc.NewClientWithCodec(goridgeRpc.NewClientCodec(conn))
+	// Close the client (and its underlying connection) when the test ends so a
+	// fresh-client-per-call helper does not leak sockets/goroutines across a run.
+	t.Cleanup(func() { _ = client.Close() })
+	return client
 }
 
 func DeleteQueues(t *testing.T, queueNames ...string) {
