@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.42.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.27
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.26
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.44.2
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.45.1
 	github.com/google/uuid v1.6.0
 	github.com/roadrunner-server/api-go/v6 v6.0.0-beta.12.0.20260714200341-93604e5012d4
 	github.com/roadrunner-server/api-plugins/v6 v6.0.0-beta.2
