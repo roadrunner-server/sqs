@@ -68,7 +68,8 @@ jobs:
         run: |
           cd tests
           docker compose -f env/docker-compose-sqs-local.yaml up -d --remove-orphans
-          sleep 30
+          timeout 120 bash -c 'until curl -sf 127.0.0.1:4566/_localstack/health >/dev/null; do sleep 2; done'
+          timeout 60 bash -c 'until curl -sf 127.0.0.1:8474/proxies >/dev/null; do sleep 1; done'
           mkdir ./coverage-ci
           go test -timeout 20m -v -race -cover -tags=debug -failfast -coverpkg=github.com/roadrunner-server/sqs/v6 -coverprofile=./coverage-ci/sqs_dur.out -covermode=atomic jobs_sqs_durability_test.go
           docker compose -f env/docker-compose-sqs-local.yaml down

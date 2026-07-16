@@ -1,10 +1,12 @@
 services:
   localstack:
-    image: localstack/localstack
+    # last Community release line that runs without a LOCALSTACK_AUTH_TOKEN;
+    # the 2026.x calver images exit with a license error on boot
+    image: localstack/localstack:4.14
     ports:
       - "127.0.0.1:4566:4566"            # LocalStack Gateway
       - "127.0.0.1:4510-4559:4510-4559"  # external services port range
 
   toxicproxy:
-    image: shopify/toxiproxy:latest
+    image: shopify/toxiproxy:2.1.4
     network_mode: "host"
