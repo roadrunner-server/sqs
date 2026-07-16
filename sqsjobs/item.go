@@ -189,11 +189,10 @@ func (i *Item) commonNack(requeue bool, delay int) error {
 		})
 
 		if err != nil {
-			var notInFlight *types.MessageNotInflight
 			// We ignore this error. If the message is not in flight, we cannot change the visibility. This may happen
 			// if processing takes longer than the timeout for the message, and no other works pick it up. Should be
 			// very rare though.
-			if !stderr.As(err, &notInFlight) {
+			if _, ok := stderr.AsType[*types.MessageNotInflight](err); !ok {
 				return err
 			}
 		}
