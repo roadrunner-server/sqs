@@ -25,7 +25,7 @@ require (
 	github.com/roadrunner-server/sqs/v6 v6.0.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel/sdk v1.45.0
-	google.golang.org/genproto v0.0.0-20260803160001-6ac0973c030d
+	google.golang.org/genproto v0.0.0-20260807164820-c8921c73eeea
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -42,7 +42,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.33.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.4 // indirect
-	github.com/aws/smithy-go v1.27.6 // indirect
+	github.com/aws/smithy-go v1.27.7 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
