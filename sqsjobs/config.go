@@ -1,8 +1,6 @@
 package sqsjobs
 
 import (
-	"os"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
@@ -180,22 +178,5 @@ func (c *Config) InitDefault() {
 
 	if c.Tags == nil {
 		c.Tags = make(map[string]string)
-	}
-
-	// used for the tests
-	if str := os.Getenv("RR_TEST_ENV"); str != "" {
-		// All parameters are required for the tests to succeed, so we
-		// fail fast here if this is not configured correctly.
-		if os.Getenv("RR_SQS_TEST_REGION") == "" ||
-			os.Getenv("RR_SQS_TEST_KEY") == "" ||
-			os.Getenv("RR_SQS_TEST_SECRET") == "" ||
-			os.Getenv("RR_SQS_TEST_ENDPOINT") == "" ||
-			os.Getenv("RR_SQS_TEST_ACCOUNT_ID") == "" {
-			panic("security check: test mode is enabled, but not all sqs environment parameters are set")
-		}
-		c.Region = os.Getenv("RR_SQS_TEST_REGION")
-		c.Key = os.Getenv("RR_SQS_TEST_KEY")
-		c.Secret = os.Getenv("RR_SQS_TEST_SECRET")
-		c.Endpoint = os.Getenv("RR_SQS_TEST_ENDPOINT")
 	}
 }

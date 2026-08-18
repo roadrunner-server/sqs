@@ -65,13 +65,18 @@ jobs:
         run: go mod download
 
       - name: Run golang tests with coverage
+        # the endpoint here is the direct one: only the driver, whose config
+        # points at the toxiproxy port, goes through the proxy
+        env:
+          AWS_ENDPOINT_URL: http://127.0.0.1:4566
+          AWS_REGION: us-west-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
         run: |
           cd tests
-          docker compose -f env/docker-compose-sqs-local.yaml up -d --remove-orphans
-          timeout 120 bash -c 'until curl -sf 127.0.0.1:4566/_localstack/health >/dev/null; do sleep 2; done'
-          timeout 60 bash -c 'until curl -sf 127.0.0.1:8474/proxies >/dev/null; do sleep 1; done'
+          docker compose -f env/docker-compose-sqs-local.yaml up -d --wait
           mkdir ./coverage-ci
-          go test -timeout 20m -v -race -cover -tags=debug -failfast -coverpkg=github.com/roadrunner-server/sqs/v6 -coverprofile=./coverage-ci/sqs_dur.out -covermode=atomic jobs_sqs_durability_test.go
+          go test -timeout 20m -v -race -cover -tags=debug -run TestRedialAfterOutage -coverpkg=github.com/roadrunner-server/sqs/v6/... -coverprofile=./coverage-ci/sqs_dur.out -covermode=atomic ./...
           docker compose -f env/docker-compose-sqs-local.yaml down
 
       - name: Archive code coverage results
@@ -107,6 +112,12 @@ jobs:
             }
           ' summary.txt > summary.filtered.txt
           mv summary.filtered.txt summary.txt
+          # a profile that maps to no plugin source uploads fine and reports 0%
+          blocks=$(($(wc -l < summary.txt) - 1))
+          if [ "$blocks" -lt 10 ]; then
+            echo "::error::coverage summary holds $blocks blocks, the profile does not map to plugin sources"
+            exit 1
+          fi
 
       - name: upload to codecov
         uses: codecov/codecov-action@v7 # Docs: <https://github.com/codecov/codecov-action>

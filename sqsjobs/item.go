@@ -66,6 +66,9 @@ type Options struct {
 	RetainFailedJobs bool `json:"retain_failed_jobs,omitempty"`
 
 	// Private ================
+	// requeued marks a copy republished by Requeue or Nack; on a fifo queue it
+	// needs a fresh deduplication id or SQS drops it inside the dedup window.
+	requeued       bool
 	cond           *sync.Cond
 	stopped        *atomic.Uint64
 	msgInFlight    *atomic.Int64
@@ -167,6 +170,7 @@ func (i *Item) commonNack(requeue bool, delay int) error {
 	switch {
 	case !i.Options.RetainFailedJobs:
 		// requeue as new message
+		i.Options.requeued = true
 		err := i.Options.requeueFn(context.Background(), i)
 		if err != nil {
 			return err
@@ -241,6 +245,7 @@ func (i *Item) Requeue(headers map[string][]string, delay int) error {
 	}
 
 	// requeue message
+	i.Options.requeued = true
 	err := i.Options.requeueFn(context.Background(), i)
 	if err != nil {
 		return err
@@ -277,6 +282,17 @@ func fromJob(job jobs.Message) *Item {
 	}
 }
 
+// dedupID picks the fifo deduplication source: the job id keeps a double push
+// of the same job idempotent, while a requeued copy has to differ from the
+// original it replaces.
+func (i *Item) dedupID() string {
+	if i.Options.requeued {
+		return uuid.NewString()
+	}
+
+	return i.ID()
+}
+
 func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInput, error) {
 	// pack a header map
 	data, err := json.Marshal(i.headers)
@@ -288,7 +304,7 @@ func (i *Item) pack(queueURL, origQueue *string, mg string) (*sqs.SendMessageInp
 		MessageBody:            aws.String(bytesToStr(i.Payload)),
 		QueueUrl:               queueURL,
 		DelaySeconds:           delay(origQueue, int32(i.Options.Delay)), //nolint:gosec
-		MessageDeduplicationId: dedup(i.ID(), origQueue),
+		MessageDeduplicationId: dedup(i.dedupID(), origQueue),
 		// message group used for the FIFO
 		MessageGroupId: mgr(mg),
 		MessageAttributes: map[string]types.MessageAttributeValue{
