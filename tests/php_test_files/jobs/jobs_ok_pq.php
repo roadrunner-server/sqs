@@ -6,6 +6,6 @@ require dirname(__DIR__) . "/vendor/autoload.php";
 $consumer = new Spiral\RoadRunner\Jobs\Consumer();
 
 while ($task = $consumer->waitTask()) {
-    sleep(15);
+    sleep(2);
     $task->ack();
 }

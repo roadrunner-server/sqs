@@ -4,9 +4,20 @@ services:
     # the 2026.x calver images exit with a license error on boot
     image: localstack/localstack:4.14
     ports:
-      - "127.0.0.1:4566:4566"            # LocalStack Gateway
-      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+      - "127.0.0.1:4566:4566"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:4566/_localstack/health"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
 
-  toxicproxy:
-    image: shopify/toxiproxy:2.1.4
-    network_mode: "host"
+  # fronts localstack for the durability (redial) test; bridged rather than host
+  # networked so the api and the proxied port are reachable off Linux too
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    depends_on:
+      localstack:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8474:8474"
+      - "127.0.0.1:19324:19324"

@@ -64,22 +64,21 @@ jobs:
 
       - name: Run SQS tests with coverage
         env:
-          RR_TEST_ENV: ${{ secrets.RR_TEST_ENV }}
-          RR_SQS_TEST_ENDPOINT: ${{ secrets.RR_SQS_TEST_ENDPOINT }}
-          RR_SQS_TEST_REGION: ${{ secrets.RR_SQS_TEST_REGION }}
-          RR_SQS_TEST_KEY: ${{ secrets.RR_SQS_TEST_KEY }}
-          RR_SQS_TEST_SECRET: ${{ secrets.RR_SQS_TEST_SECRET }}
-          RR_SQS_TEST_ACCOUNT_ID: ${{ secrets.RR_SQS_TEST_ACCOUNT_ID }}
+          RR_TEST_ENV: local
+          RR_SQS_TEST_ENDPOINT: http://127.0.0.1:4566
+          RR_SQS_TEST_REGION: us-west-1
+          RR_SQS_TEST_KEY: test
+          RR_SQS_TEST_SECRET: test
+          RR_SQS_TEST_ACCOUNT_ID: "000000000000"
         run: |
           cd tests
           mkdir ./coverage-ci
-          docker compose -f env/docker-compose-otel.yaml up -d
-          sleep 30
-          go test -timeout 20m -v -race -cover -tags=debug -failfast -coverpkg=github.com/roadrunner-server/sqs/v6 -coverprofile=./coverage-ci/sqs.out -covermode=atomic jobs_sqs_test.go jobs_sqs_fifo_test.go
+          docker compose -f env/docker-compose-sqs-local.yaml up -d --wait
+          go test -timeout 20m -v -race -cover -tags=debug -coverpkg=github.com/roadrunner-server/sqs/v6/... -coverprofile=./coverage-ci/sqs.out -covermode=atomic -skip TestRedialAfterOutage ./...
 
       - name: Run SQS-unit tests with coverage
         run: |
-          go test -timeout 20m -v -race -cover -tags=debug -failfast -coverpkg=github.com/roadrunner-server/sqs/v6 -coverprofile=./tests/coverage-ci/sqs_u.out -covermode=atomic ./...
+          go test -timeout 5m -v -race -cover -tags=debug -coverpkg=./... -coverprofile=./tests/coverage-ci/sqs_u.out -covermode=atomic ./...
 
       - name: Archive code coverage results
         uses: actions/upload-artifact@v7
@@ -114,6 +113,12 @@ jobs:
             }
           ' summary.txt > summary.filtered.txt
           mv summary.filtered.txt summary.txt
+          # a profile that maps to no plugin source uploads fine and reports 0%
+          blocks=$(($(wc -l < summary.txt) - 1))
+          if [ "$blocks" -lt 10 ]; then
+            echo "::error::coverage summary holds $blocks blocks, the profile does not map to plugin sources"
+            exit 1
+          fi
 
       - name: upload to codecov
         uses: codecov/codecov-action@v7 # Docs: <https://github.com/codecov/codecov-action>

@@ -12,6 +12,6 @@ while ($task = $consumer->waitTask()) {
     if ($total_attempts > 3) {
         $task->ack();
     } else {
-        $task->withHeader("attempts", $total_attempts)->withDelay(5)->requeue("failed");
+        $task->withHeader("attempts", $total_attempts)->withDelay(2)->requeue("failed");
     }
 }

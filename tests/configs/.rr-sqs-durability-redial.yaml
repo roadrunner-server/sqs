@@ -27,7 +27,7 @@ jobs:
       config:
         prefetch: 10
         wait_time_seconds: 10
-        queue: sqs-durability-redial-1
+        queue: sqs-durability-1
         attributes:
           VisibilityTimeout: 0
         tags:
@@ -37,7 +37,7 @@ jobs:
       driver: sqs
       config:
         prefetch: 10
-        queue: sqs-durability-redial-2
+        queue: sqs-durability-2
         wait_time_seconds: 10
         tags:
           test: "tag"

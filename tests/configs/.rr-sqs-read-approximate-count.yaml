@@ -26,4 +26,4 @@ jobs:
         wait_time_seconds: 10
         queue: sqs-read-approximate-count
         retain_failed_jobs: true
-        error_visibility_timeout: 10
+        error_visibility_timeout: 2
