@@ -64,12 +64,10 @@ jobs:
 
       - name: Run SQS tests with coverage
         env:
-          RR_TEST_ENV: local
-          RR_SQS_TEST_ENDPOINT: http://127.0.0.1:4566
-          RR_SQS_TEST_REGION: us-west-1
-          RR_SQS_TEST_KEY: test
-          RR_SQS_TEST_SECRET: test
-          RR_SQS_TEST_ACCOUNT_ID: "000000000000"
+          AWS_ENDPOINT_URL: http://127.0.0.1:4566
+          AWS_REGION: us-west-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
         run: |
           cd tests
           mkdir ./coverage-ci

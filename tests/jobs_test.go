@@ -267,9 +267,9 @@ func TestStatsReportQueueCounters(t *testing.T) {
 
 	paused := helpers.StatsFor(t, statsAddr, declared)
 	require.Equal(t, "sqs", paused.Driver)
-	// the endpoint half of the url depends on how the backend styles it, the
-	// account and queue tail does not
-	require.True(t, strings.HasSuffix(paused.Queue, "/000000000000/sqs-test-declare-stats"), "queue url: %s", paused.Queue)
+	// the endpoint and account half of the url depends on the backend, the
+	// queue tail does not
+	require.True(t, strings.HasSuffix(paused.Queue, "/sqs-test-declare-stats"), "queue url: %s", paused.Queue)
 	require.Equal(t, uint64(3), paused.Priority)
 	require.False(t, paused.Ready)
 

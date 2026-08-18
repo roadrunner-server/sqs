@@ -65,14 +65,13 @@ jobs:
         run: go mod download
 
       - name: Run golang tests with coverage
-        # RR_TEST_ENV stays unset here: the config override it enables would
-        # replace the toxiproxy endpoint and the outage would never be seen
+        # the endpoint here is the direct one: only the driver, whose config
+        # points at the toxiproxy port, goes through the proxy
         env:
-          RR_SQS_TEST_ENDPOINT: http://127.0.0.1:4566
-          RR_SQS_TEST_REGION: us-west-1
-          RR_SQS_TEST_KEY: test
-          RR_SQS_TEST_SECRET: test
-          RR_SQS_TEST_ACCOUNT_ID: "000000000000"
+          AWS_ENDPOINT_URL: http://127.0.0.1:4566
+          AWS_REGION: us-west-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
         run: |
           cd tests
           docker compose -f env/docker-compose-sqs-local.yaml up -d --wait

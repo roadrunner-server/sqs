@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
-	"os"
 	"slices"
 	"testing"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	sqsConf "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
@@ -181,23 +179,13 @@ func StatsFor(t *testing.T, address string, pipeline string) *jobState.State {
 	return nil
 }
 
-// QueueURL builds the url used to address a queue directly at the endpoint.
-func QueueURL(queue string) string {
-	return fmt.Sprintf("%s/%s/%s",
-		os.Getenv("RR_SQS_TEST_ENDPOINT"),
-		os.Getenv("RR_SQS_TEST_ACCOUNT_ID"),
-		queue)
-}
-
-// newSQSClient dials the endpoint directly, bypassing RoadRunner.
+// newSQSClient dials the endpoint directly, bypassing RoadRunner. The standard
+// AWS env chain supplies the endpoint, region and credentials, the same way the
+// driver resolves them when the config leaves them out.
 func newSQSClient(ctx context.Context, t *testing.T) *sqs.Client {
 	t.Helper()
 
-	awsConf, err := sqsConf.LoadDefaultConfig(ctx,
-		sqsConf.WithBaseEndpoint(os.Getenv("RR_SQS_TEST_ENDPOINT")),
-		sqsConf.WithRegion(os.Getenv("RR_SQS_TEST_REGION")),
-		sqsConf.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			os.Getenv("RR_SQS_TEST_KEY"), os.Getenv("RR_SQS_TEST_SECRET"), "")))
+	awsConf, err := sqsConf.LoadDefaultConfig(ctx)
 	require.NoError(t, err)
 
 	return sqs.NewFromConfig(awsConf, func(o *sqs.Options) {
@@ -207,13 +195,26 @@ func newSQSClient(ctx context.Context, t *testing.T) *sqs.Client {
 	})
 }
 
+// queueURL resolves the url for a queue name through the api rather than by
+// assembling it, so the tests do not care how the backend styles its urls.
+func queueURL(ctx context.Context, t *testing.T, client *sqs.Client, queue string) *string {
+	t.Helper()
+
+	out, err := client.GetQueueUrl(ctx, &sqs.GetQueueUrlInput{QueueName: aws.String(queue)})
+	require.NoError(t, err)
+
+	return out.QueueUrl
+}
+
 // SendRaw puts a message on the queue without going through RoadRunner, so a
 // test can hand the listener attributes the driver did not produce.
 func SendRaw(t *testing.T, queue string, body string, attributes map[string]types.MessageAttributeValue) {
 	t.Helper()
 
-	_, err := newSQSClient(t.Context(), t).SendMessage(t.Context(), &sqs.SendMessageInput{
-		QueueUrl:          aws.String(QueueURL(queue)),
+	client := newSQSClient(t.Context(), t)
+
+	_, err := client.SendMessage(t.Context(), &sqs.SendMessageInput{
+		QueueUrl:          queueURL(t.Context(), t, client, queue),
 		MessageBody:       aws.String(body),
 		MessageAttributes: attributes,
 	})
@@ -230,7 +231,7 @@ func DeleteQueues(t *testing.T, queueNames ...string) {
 
 	client := newSQSClient(ctx, t)
 	for _, queueName := range queueNames {
-		_, err := client.DeleteQueue(ctx, &sqs.DeleteQueueInput{QueueUrl: aws.String(QueueURL(queueName))})
+		_, err := client.DeleteQueue(ctx, &sqs.DeleteQueueInput{QueueUrl: queueURL(ctx, t, client, queueName)})
 		require.NoError(t, err)
 	}
 }
