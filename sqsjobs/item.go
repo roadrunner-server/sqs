@@ -151,7 +151,15 @@ func (i *Item) Ack() error {
 	return err
 }
 
-func (i *Item) commonNack(requeue bool, delay int) error {
+func (i *Item) Nack() error {
+	return i.NackWithOptions(false, 0)
+}
+
+func (i *Item) NackWithOptions(requeue bool, delay int) error {
+	if i.Options.stopped.Load() == 1 {
+		return errors.Str(pipelineStoppedError)
+	}
+
 	if requeue {
 		// requeue message
 		// Note: Requeue checks for pipeline stop and decrements in-flight messages on its own
@@ -205,24 +213,6 @@ func (i *Item) commonNack(requeue bool, delay int) error {
 	}
 
 	return nil
-}
-
-func (i *Item) Nack() error {
-	// return error if the pipeline was already stopped
-	if i.Options.stopped.Load() == 1 {
-		return errors.Str(pipelineStoppedError)
-	}
-
-	return i.commonNack(false, 0)
-}
-
-func (i *Item) NackWithOptions(requeue bool, delay int) error {
-	// return error if the pipeline was already stopped
-	if i.Options.stopped.Load() == 1 {
-		return errors.Str(pipelineStoppedError)
-	}
-
-	return i.commonNack(requeue, delay)
 }
 
 func (i *Item) Requeue(headers map[string][]string, delay int) error {
