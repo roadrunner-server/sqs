@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.1
 	github.com/aws/smithy-go v1.28.2
 	github.com/google/uuid v1.6.0
-	github.com/roadrunner-server/api-plugins/v6 v6.0.0-beta.2
+	github.com/roadrunner-server/api-plugins/v6 v6.0.0
 	github.com/roadrunner-server/endure/v2 v2.6.2
 	github.com/roadrunner-server/errors v1.5.0
 	github.com/stretchr/testify v1.12.1
