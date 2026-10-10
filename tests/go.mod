@@ -7,7 +7,7 @@ toolchain go1.27.1
 require (
 	github.com/aws/aws-sdk-go-v2 v1.47.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.6
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.1
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.52.2
 	github.com/google/uuid v1.6.0
 	github.com/roadrunner-server/api-go/v6 v6.0.0-beta.15
 	github.com/roadrunner-server/api-plugins/v6 v6.0.0-beta.2
