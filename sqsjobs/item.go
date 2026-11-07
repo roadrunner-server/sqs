@@ -2,7 +2,7 @@ package sqsjobs
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	stderr "errors"
 	"maps"
 	"strconv"
